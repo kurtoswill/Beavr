@@ -1,36 +1,164 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Zapp
+
+**Zapp** is an on-demand local service platform that connects customers with nearby skilled workers (e.g., plumbers, electricians) in real time.
+
+It enables users to quickly request help, receive offers, track progress, and complete jobs—all in a simple, streamlined workflow.
+
+---
+
+## Features
+
+### Customer
+
+* Create service requests (description + image)
+* View and choose available workers
+* Track worker status (on the way, in progress, completed)
+* Rate and review completed jobs
+
+### Worker
+
+* Register and apply as a service provider
+* Submit KYC (ID)
+* Toggle availability (online/offline)
+* Accept or reject incoming jobs
+* Update job status and upload completion proof
+* Rate the customer and view total earnings
+* View earnings and wallet balance (mocked)
+
+### Platform
+
+* Real-time job matching (simplified for MVP)
+* Job lifecycle tracking
+* Rating and review system
+* Basic trust system via KYC
+
+---
+
+## Tech Stack
+
+**Frontend**
+
+* Next.js (App Router)
+* React
+* Tailwind CSS
+
+**Backend / BaaS**
+
+* Firebase or Supabase
+
+  * Authentication
+  * Database
+  * Storage
+
+**Other**
+
+* Google Maps API (or mocked map for demo)
+* OpenAI API (optional for AI features)
+
+---
+
+## Project Structure
+
+```
+app/
+  (auth)/
+  (customer)/
+  (worker)/
+  (shared)/
+  api/
+
+components/
+lib/
+utils/
+```
+
+---
 
 ## Getting Started
 
-First, run the development server:
+### 1. Clone the repository
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+git clone https://github.com/your-username/zapp.git
+cd zapp
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Install dependencies
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+npm install
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. Setup environment variables
 
-## Learn More
+Create a `.env.local` file:
 
-To learn more about Next.js, take a look at the following resources:
+```
+NEXT_PUBLIC_API_URL=
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 4. Run the development server
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+npm run dev
+```
 
-## Deploy on Vercel
+App will be available at:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+http://localhost:3000
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Job Status Flow
+
+```
+pending → accepted → on_the_way → in_progress → completed
+```
+
+---
+
+## Business Model (Concept)
+
+Zapp uses a commission-based system:
+
+* Platform fee: 20% per job
+* Payments are simulated in the MVP
+
+---
+
+## Hackathon Scope
+
+This project is built as a **4-day hackathon MVP**.
+
+### Included
+
+* Core user flows (customer + worker)
+* Job matching and status tracking
+* KYC (basic implementation)
+
+### Simulated
+
+* Payments and wallet system
+* Real-time GPS tracking (basic/mock)
+
+---
+
+## Future Improvements
+
+* Real-time notifications
+* Full payment integration (GCash, etc.)
+* Advanced worker matching
+* Admin verification dashboard
+* AI-based problem detection
+
+---
+
+## License
+
+This project is for educational and hackathon purposes.
