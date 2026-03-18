@@ -234,7 +234,7 @@ export default function LandingPage() {
         </div>
 
         {/* Secondary CTA */}
-        <button className={styles.ctaSecondary}>
+        <button className={styles.ctaSecondary} onClick={() => router.push("/onboard")}>
           Become a specialist
         </button>
 

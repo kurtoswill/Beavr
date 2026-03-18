@@ -1,0 +1,616 @@
+/* ================================================================
+   Beavr — Specialist Onboarding / KYC
+   app/onboard/page.module.css
+   ================================================================ */
+
+.page {
+  min-height: 100svh;
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ----------------------------------------------------------------
+   Header
+   ---------------------------------------------------------------- */
+.header {
+  flex-shrink: 0;
+  padding: calc(var(--safe-top) + var(--space-6)) var(--space-5) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--color-surface);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.headerTitle {
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-lh);
+  font-weight: 400;
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.logoInline {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.logoBold {
+  font-weight: 800;
+  color: var(--color-text-primary);
+  letter-spacing: -0.02em;
+}
+
+.logoTail {
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+/* Progress bar */
+.progressTrack {
+  width: 100%;
+  height: 5px;
+  background: var(--color-ink-20);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--color-brand);
+  border-radius: var(--radius-full);
+  transition: width 0.4s var(--ease-out);
+}
+
+/* ----------------------------------------------------------------
+   Main
+   ---------------------------------------------------------------- */
+.main {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.main::-webkit-scrollbar { display: none; }
+
+.stepContent {
+  padding: var(--space-6) var(--space-5) var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ----------------------------------------------------------------
+   Section titles
+   ---------------------------------------------------------------- */
+.sectionTitle {
+  font-size: var(--text-body-lg-size);
+  line-height: var(--text-body-lg-lh);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+}
+
+.sectionSub {
+  font-size: var(--text-sm-size);
+  color: var(--color-text-secondary);
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.mt { margin-top: var(--space-2); }
+
+/* ----------------------------------------------------------------
+   Field group
+   ---------------------------------------------------------------- */
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.fieldLabel {
+  font-size: var(--text-sm-size);
+  line-height: var(--text-sm-lh);
+  color: var(--color-text-primary);
+}
+
+.required { color: var(--color-error); }
+
+.errorMsg {
+  font-size: var(--text-xs-size);
+  color: var(--color-error);
+  font-weight: 500;
+}
+
+/* ----------------------------------------------------------------
+   Text input
+   ---------------------------------------------------------------- */
+.input {
+  width: 100%;
+  height: 44px;
+  background: var(--color-surface-raised);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 0 var(--space-4);
+  font-family: var(--font-family);
+  font-size: var(--text-body-size);
+  color: var(--color-text-primary);
+  outline: none;
+  transition: border-color var(--duration-fast) var(--ease-out),
+              box-shadow    var(--duration-fast) var(--ease-out);
+}
+
+.input::placeholder { color: var(--color-text-disabled); }
+
+.input:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-20);
+}
+
+.inputMt { margin-top: var(--space-2); }
+
+/* ----------------------------------------------------------------
+   Select
+   ---------------------------------------------------------------- */
+.selectWrap {
+  position: relative;
+  width: 100%;
+}
+
+.select {
+  width: 100%;
+  height: 44px;
+  background: var(--color-surface-raised);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 0 var(--space-10) 0 var(--space-4);
+  font-family: var(--font-family);
+  font-size: var(--text-body-size);
+  color: var(--color-text-primary);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out),
+              box-shadow    var(--duration-fast) var(--ease-out);
+}
+
+.select:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-20);
+}
+
+.selectChevron {
+  position: absolute;
+  right: var(--space-4);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-secondary);
+  pointer-events: none;
+}
+
+/* Error + disabled */
+.fieldError { border-color: var(--color-error) !important; }
+.fieldError .select,
+.fieldError.input { border-color: var(--color-error) !important; }
+
+.disabled .select {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--color-surface-subtle);
+}
+
+/* ----------------------------------------------------------------
+   Locked field (Region — read-only)
+   ---------------------------------------------------------------- */
+.lockedField {
+  width: 100%;
+  height: 44px;
+  background: var(--color-surface-subtle);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 0 var(--space-4);
+  display: flex;
+  align-items: center;
+  font-family: var(--font-family);
+  font-size: var(--text-body-size);
+  color: var(--color-text-secondary);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ----------------------------------------------------------------
+   Upload box
+   ---------------------------------------------------------------- */
+.fileHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.uploadBox {
+  width: 100%;
+  min-height: 96px;
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-raised);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: border-color var(--duration-fast) var(--ease-out),
+              background    var(--duration-fast) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.uploadBox:hover,
+.uploadBox:focus-visible {
+  border-color: var(--color-brand-40);
+  background: var(--color-brand-20);
+}
+
+.uploadBoxError { border-color: var(--color-error) !important; }
+
+.uploadBoxFilled {
+  border-style: solid;
+  border-color: var(--color-brand);
+  min-height: 140px;
+}
+
+.uploadPlaceholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  pointer-events: none;
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.uploadIcon {
+  color: var(--color-text-secondary);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.uploadBox:hover .uploadIcon { color: var(--color-brand); }
+
+.uploadHint {
+  font-size: var(--text-sm-size);
+  color: var(--color-text-secondary);
+}
+
+.uploadPreview {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+}
+
+.uploadClear {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 24px;
+  height: 24px;
+  background: rgba(13, 23, 42, 0.65);
+  border-radius: var(--radius-full);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.uploadClear:hover { background: var(--color-error); }
+
+/* ----------------------------------------------------------------
+   Fake pin map
+   ---------------------------------------------------------------- */
+.pinMapWrap {
+  position: relative;
+  width: 100%;
+  height: 160px;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  border: 1.5px solid var(--color-border);
+}
+
+.pinMapBg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 120% 80% at 40% 30%, #2a4a18 0%, #1a3010 50%, #0f1e09 100%),
+    radial-gradient(ellipse 80% 60% at 75% 75%, #1e3a10 0%, #0f1e09 80%);
+}
+
+.pinMapRoads {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.pinMarker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -100%);
+}
+
+.pinIcon { color: var(--color-brand); filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4)); }
+
+/* ----------------------------------------------------------------
+   Bottom bar
+   ---------------------------------------------------------------- */
+.bottomBar {
+  flex-shrink: 0;
+  padding: var(--space-4) var(--space-5);
+  padding-bottom: calc(var(--safe-bottom) + var(--space-5));
+  background: var(--color-surface);
+  box-shadow: 0 -4px 20px rgba(13,23,42,0.07), 0 -1px 0 rgba(13,23,42,0.05);
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.nextBtn {
+  width: 100%;
+  height: 54px;
+  background: var(--color-brand);
+  border: none;
+  border-radius: var(--radius-full);
+  font-family: var(--font-family);
+  font-size: var(--text-body-lg-size);
+  font-weight: var(--text-body-lg-semi-weight);
+  color: #ffffff;
+  cursor: pointer;
+  box-shadow: var(--shadow-brand);
+  transition: background var(--duration-fast) var(--ease-out),
+              transform  var(--duration-fast) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nextBtn:hover  { background: #1f6be8; }
+.nextBtn:active { transform: scale(0.98); }
+
+.nextBtnGhost {
+  background: transparent;
+  border: 1.5px solid var(--color-border);
+  color: var(--color-text-primary);
+  box-shadow: none;
+}
+
+.nextBtnGhost:hover {
+  background: var(--color-surface-subtle);
+  border-color: var(--color-ink-40);
+}
+
+/* ================================================================
+   Step 5 — Verify screen
+   ================================================================ */
+.verifyScreen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: var(--space-10) var(--space-5);
+  min-height: 60svh;
+  text-align: center;
+}
+
+/* ---- Loading spinner ---- */
+.verifySpinnerWrap {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.verifyRing1,
+.verifyRing2,
+.verifyRing3 {
+  position: absolute;
+  border-radius: var(--radius-full);
+  background: var(--color-brand-20);
+}
+
+.verifyRing3 {
+  width: 120px;
+  height: 120px;
+  animation: verifyPulse 2s var(--ease-out) infinite;
+}
+
+.verifyRing2 {
+  width: 90px;
+  height: 90px;
+  background: var(--color-brand-40);
+  animation: verifyPulse 2s var(--ease-out) 0.3s infinite;
+}
+
+.verifyRing1 {
+  width: 64px;
+  height: 64px;
+  background: var(--color-brand);
+}
+
+@keyframes verifyPulse {
+  0%   { transform: scale(0.85); opacity: 0.9; }
+  50%  { transform: scale(1);    opacity: 0.5; }
+  100% { transform: scale(0.85); opacity: 0.9; }
+}
+
+.verifyCenter {
+  position: absolute;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.verifyIcon {
+  color: #ffffff;
+  animation: iconPulse 1.4s var(--ease-inout) infinite;
+}
+
+@keyframes iconPulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%       { opacity: 0.7; transform: scale(0.88); }
+}
+
+/* ---- Dot loader ---- */
+.verifyDots {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.verifyDots span {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-brand-40);
+  animation: dotBounce 1.2s var(--ease-inout) infinite;
+}
+
+.verifyDots span:nth-child(2) { animation-delay: 0.2s; }
+.verifyDots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dotBounce {
+  0%, 100% { transform: translateY(0); background: var(--color-brand-40); }
+  50%       { transform: translateY(-6px); background: var(--color-brand); }
+}
+
+/* ---- Verified state — mirrors payment receipt icon exactly ---- */
+.verifyDoneWrap {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: popIn var(--duration-slow) var(--ease-out) both;
+}
+
+@keyframes popIn {
+  0%   { transform: scale(0.6); opacity: 0; }
+  70%  { transform: scale(1.08); }
+  100% { transform: scale(1);   opacity: 1; }
+}
+
+.verifyDoneRing1,
+.verifyDoneRing2 {
+  position: absolute;
+  border-radius: var(--radius-full);
+}
+
+/* Outer ring — lightest */
+.verifyDoneRing2 {
+  width: 96px;
+  height: 96px;
+  background: var(--color-brand-20);
+}
+
+/* Middle ring */
+.verifyDoneRing1 {
+  width: 72px;
+  height: 72px;
+  background: var(--color-brand-40);
+}
+
+/* Inner solid circle */
+.verifyDoneCenter {
+  position: absolute;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-full);
+  background: var(--color-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.verifyDoneCheck { color: #ffffff; }
+
+.verifyTitle {
+  font-size: var(--text-h2-size);
+  line-height: var(--text-h2-lh);
+  font-weight: var(--text-h2-weight);
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+}
+
+.verifySub {
+  font-size: var(--text-body-size);
+  color: var(--color-text-secondary);
+}
+
+/* Verified identity card */
+.verifyCard {
+  background: var(--color-surface-raised);
+  border: 1.5px solid var(--color-brand-40);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 280px;
+  box-shadow: var(--shadow-brand);
+  animation: fadeUp var(--duration-slower) var(--ease-out) 0.2s both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.verifyCardName {
+  font-size: var(--text-h3-size);
+  font-weight: var(--text-h3-weight);
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+.verifyCardRole {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm-med-size);
+  font-weight: var(--text-sm-med-weight);
+  color: var(--color-brand);
+}
+
+.verifyCardRoleIcon { flex-shrink: 0; }
+
+/* ================================================================
+   Responsive
+   ================================================================ */
+@media (min-width: 640px) {
+  .stepContent { padding-inline: var(--space-8); }
+  .bottomBar   { padding-inline: var(--space-8); }
+  .header      { padding-inline: var(--space-8); }
+}
