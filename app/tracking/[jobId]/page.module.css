@@ -177,7 +177,7 @@
   left: 0;
   right: 0;
   /* bottom extends past viewport so content doesn't peek under sticky bar */
-  bottom: -100px;
+  bottom: -20px;
   /* top set by JS on mount */
   top: 100%;
   z-index: 10;
@@ -214,8 +214,8 @@
 
 /* ---- Peek zone: always visible, identity row only ---- */
 .peekZone {
-  flex-shrink: 1;
-  padding: var(--space-2) var(--space-5) var(--space-1);
+  flex-shrink: 0;
+  padding: var(--space-1) var(--space-5) var(--space-1);
 }
 
 /* ---- Scrollable expanded content ---- */
@@ -559,7 +559,7 @@
 }
 
 .progressMoving {
-  background: linear-gradient(90deg, var(--color-brand) 0%, #22C55E 100%);
+  background: var(--color-brand);
   transition: width 0.5s var(--ease-out);
 }
 

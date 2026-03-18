@@ -17,26 +17,26 @@ const manrope = Manrope({
 /* ------------------------------------------------------------------ */
 export const metadata: Metadata = {
   title: {
-    default: "Zapp — Fix anything. Fast.",
-    template: "%s | Zapp",
+    default: "Beavr — Fix anything. Fast.",
+    template: "%s | Beavr",
   },
   description:
     "On-demand local services platform. Connect with nearby skilled workers in real time.",
-  applicationName: "Zapp",
+  applicationName: "Beavr",
   keywords: ["local services", "on-demand", "plumber", "electrician", "skilled workers"],
-  authors: [{ name: "Zapp" }],
-  creator: "Zapp",
-  metadataBase: new URL("https://zapp.app"),
+  authors: [{ name: "Beavr" }],
+  creator: "Beavr",
+  metadataBase: new URL("https://beavr.app"),
   openGraph: {
     type: "website",
-    siteName: "Zapp",
-    title: "Zapp — Fix anything. Fast.",
+    siteName: "Beavr",
+    title: "Beavr — Fix anything. Fast.",
     description:
       "On-demand local services. Connect with nearby skilled workers in real time.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Zapp — Fix anything. Fast.",
+    title: "Beavr — Fix anything. Fast.",
     description:
       "On-demand local services. Connect with nearby skilled workers in real time.",
   },

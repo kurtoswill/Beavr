@@ -306,7 +306,7 @@ export default function TrackingPage() {
       <div
         ref={sheetRef}
         className={styles.sheet}
-        aria-label="Worker profile"
+        aria-label="Specialist profile"
       >
         {/* Drag handle */}
         <div
@@ -406,11 +406,6 @@ export default function TrackingPage() {
 
         {/* Row 1: Rate + ETA + status label */}
         <div className={styles.stickyTopRow}>
-          {/* Rate pill */}
-          <div className={styles.ratePill}>
-            <span className={styles.rateCurrency}>{WORKER.currency}</span>
-            <span className={styles.rateValue}>{WORKER.rate.toLocaleString()}</span>
-          </div>
 
           {/* Status + ETA */}
           <div className={styles.statusBlock}>
@@ -434,11 +429,11 @@ export default function TrackingPage() {
 
         {/* Status note */}
         <p className={`${styles.statusNote} ${isLate ? styles.statusNoteLate : ""}`}>
-          {status === "waiting" && !isLate && "Waiting for the worker to confirm and head your way…"}
-          {status === "waiting" && isLate  && "Worker hasn't responded yet. They usually reply within 10 s."}
+          {status === "waiting" && !isLate && "Looking for your specialist to confirm and head your way…"}
+          {status === "waiting" && isLate  && "Your specialist hasn't responded yet. They usually reply within 10 s."}
           {status === "on_the_way" && (etaRemaining > 1
-            ? `Your worker is heading to you — ${etaRemaining} min away.`
-            : "Your worker is almost there!")}
+            ? `Your specialist is on the way — ${etaRemaining} min away.`
+            : "Your specialist is almost there!")}
           {status === "no_response" && "The worker didn't respond in time."}
         </p>
 

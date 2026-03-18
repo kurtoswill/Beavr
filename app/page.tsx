@@ -1,22 +1,22 @@
 "use client";
 
-import ServiceChip from "@/components/ServiceChip/ServiceChip";
-import type { LucideIcon } from "lucide-react";
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
+  MapPin,
   ChevronDown,
+  SlidersHorizontal,
   CloudUpload,
+  X,
+  Wrench,
+  Zap,
   Heart,
   HelpCircle,
-  MapPin,
   Paintbrush,
-  SlidersHorizontal,
   Truck,
-  Wrench,
-  X,
-  Zap,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import type { LucideIcon } from "lucide-react";
+import ServiceChip from "@/components/ServiceChip/ServiceChip";
 import styles from "./page.module.css";
 
 /* ------------------------------------------------------------------ */
@@ -28,11 +28,11 @@ interface Service {
 }
 
 const SERVICES: Service[] = [
-  { label: "Plumber", icon: Wrench },
-  { label: "Electrician", icon: Zap },
-  { label: "Caregiver", icon: Heart },
-  { label: "Painter", icon: Paintbrush },
-  { label: "Mover", icon: Truck },
+  { label: "Plumber",      icon: Wrench     },
+  { label: "Electrician",  icon: Zap        },
+  { label: "Caregiver",    icon: Heart      },
+  { label: "Painter",      icon: Paintbrush },
+  { label: "Mover",        icon: Truck      },
   { label: "Not sure yet", icon: HelpCircle },
 ];
 
@@ -48,12 +48,22 @@ interface UploadedFile {
 /*  Page                                                                */
 /* ================================================================== */
 export default function LandingPage() {
-  const [query, setQuery] = useState("");
+  const [query, setQuery]             = useState("");
   const [description, setDescription] = useState("");
-  const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [dragging, setDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
+  const [files, setFiles]             = useState<UploadedFile[]>([]);
+  const [dragging, setDragging]       = useState(false);
+  const [errors, setErrors]           = useState<{ query?: string; description?: string }>({});
+  const fileInputRef                  = useRef<HTMLInputElement>(null);
+  const router                        = useRouter();
+
+  const handleFindSpecialist = () => {
+    const newErrors: { query?: string; description?: string } = {};
+    if (!query.trim()) newErrors.query = "Please tell us what you need.";
+    if (!description.trim()) newErrors.description = "Please describe the problem.";
+    if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
+    setErrors({});
+    router.push("/worker-001");
+  };
 
   /* ---- File helpers ---- */
   const addFiles = (incoming: FileList | null) => {
@@ -75,10 +85,6 @@ export default function LandingPage() {
 
   /* ---- Chip selection ---- */
   const handleChipClick = (label: string) => {
-    if (label === "Not sure yet") {
-      setQuery("");
-      return;
-    }
     // Toggle: clicking the active chip deselects it
     setQuery((prev) => (prev === label ? "" : label));
   };
@@ -89,7 +95,7 @@ export default function LandingPage() {
 
       {/* ── Hero ─────────────────────────────────────────────────── */}
       <section className={styles.hero}>
-        <div className={styles.heroGlow} aria-hidden />
+        <div className={styles.heroGlow}  aria-hidden />
         <div className={styles.heroGlow2} aria-hidden />
 
         {/* Top bar */}
@@ -128,28 +134,30 @@ export default function LandingPage() {
             onChange={(e) => setQuery(e.target.value)}
             aria-label="Search for a service"
           />
-          <button className={styles.filterBtn} aria-label="Filters">
+          <button className={styles.filterBtn} aria-label="Filters" type="button">
             <SlidersHorizontal size={18} strokeWidth={2} />
           </button>
         </div>
 
+        {errors.query && <p className={styles.fieldError}>{errors.query}</p>}
+
         {/* ── Service chips ── */}
         <div className={styles.chipsWrapper}>
-          <div
-            className={styles.chipsScroll}
-            role="group"
-            aria-label="Quick service selection"
-          >
-            {SERVICES.map((s) => (
-              <ServiceChip
-                key={s.label}
-                label={s.label}
-                icon={s.icon}
-                selected={query === s.label}
-                onClick={handleChipClick}
-              />
-            ))}
-          </div>
+        <div
+          className={styles.chipsScroll}
+          role="group"
+          aria-label="Quick service selection"
+        >
+          {SERVICES.map((s) => (
+            <ServiceChip
+              key={s.label}
+              label={s.label}
+              icon={s.icon}
+              selected={query === s.label}
+              onClick={handleChipClick}
+            />
+          ))}
+        </div>
         </div>
 
         {/* Describe */}
@@ -161,6 +169,8 @@ export default function LandingPage() {
           rows={4}
           aria-label="Describe the problem"
         />
+
+        {errors.description && <p className={styles.fieldError}>{errors.description}</p>}
 
         {/* Upload drop zone */}
         <div
@@ -186,7 +196,7 @@ export default function LandingPage() {
           {files.length === 0 ? (
             <div className={styles.uploadPlaceholder}>
               <CloudUpload size={32} strokeWidth={1.5} className={styles.uploadIcon} />
-              <span className={styles.uploadLabel}>Upload&nbsp; your photos or videos</span>
+              <span className={styles.uploadLabel}>Upload photos or videos <span className={styles.optionalTag}>(optional)</span></span>
             </div>
           ) : (
             <div className={styles.uploadPreviews}>
@@ -212,8 +222,8 @@ export default function LandingPage() {
         </div>
 
         {/* Primary CTA */}
-        <button className={styles.ctaPrimary} onClick={() => router.push("/worker-001")}>
-          Find a worker
+        <button className={styles.ctaPrimary} onClick={handleFindSpecialist}>
+          Find a specialist
         </button>
 
         {/* Divider */}
@@ -225,7 +235,7 @@ export default function LandingPage() {
 
         {/* Secondary CTA */}
         <button className={styles.ctaSecondary}>
-          Be a worker
+          Become a specialist
         </button>
 
       </section>

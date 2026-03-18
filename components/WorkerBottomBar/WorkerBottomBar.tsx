@@ -21,12 +21,12 @@ export default function WorkerBottomBar({
         <input
           type="text"
           className={styles.chatInput}
-          placeholder="Chat with the worker"
-          aria-label="Chat with the worker"
+          placeholder="Chat with the specialist"
+          aria-label="Chat with the specialist"
         />
         <button
           className={styles.callBtn}
-          aria-label="Call worker"
+          aria-label="Call specialist"
           onClick={onCall}
         >
           <Phone size={18} strokeWidth={2} />
@@ -36,10 +36,10 @@ export default function WorkerBottomBar({
       {/* Action buttons */}
       <div className={styles.actions}>
         <button className={styles.rejectBtn} onClick={onReject}>
-          Reject
+          Find another
         </button>
         <button className={styles.chooseBtn} onClick={onChoose}>
-          Choose
+          Hire
         </button>
       </div>
     </footer>

@@ -518,6 +518,22 @@
   background: none !important;
 }
 
+/* ----------------------------------------------------------------
+   Validation errors & optional tag
+   ---------------------------------------------------------------- */
+.fieldError {
+  font-size: var(--text-xs-size);
+  line-height: var(--text-xs-lh);
+  color: var(--color-error);
+  font-weight: 500;
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.optionalTag {
+  color: var(--color-text-secondary);
+  font-weight: 400;
+}
+
 /* ================================================================
    Responsive — tablet & desktop
    ================================================================ */

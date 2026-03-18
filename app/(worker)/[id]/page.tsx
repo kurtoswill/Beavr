@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   Zap,
   MapPin,
   Navigation,
@@ -12,6 +11,7 @@ import {
   ChevronRight,
   Plus,
   Trash2,
+  ArrowLeft,
 } from "lucide-react";
 import StarRating from "@/components/StarRating/StarRating";
 import ReviewCard, { type Review } from "@/components/ReviewCard/ReviewCard";
@@ -206,7 +206,10 @@ export default function WorkerProfilePage() {
       </main>
 
       {/* ── Sticky bottom bar (component) ───────────────────────── */}
-      <WorkerBottomBar onChoose={() => router.push("/tracking/job-001")} />
+      <WorkerBottomBar
+        onChoose={() => router.push("/tracking/job-001")}
+        onReject={() => router.push("/worker-002")}
+      />
 
     </div>
   );
