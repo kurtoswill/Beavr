@@ -1,0 +1,612 @@
+/* ================================================================
+   Zapp — Landing Page
+   page.module.css
+   ================================================================ */
+
+/* ----------------------------------------------------------------
+   Page shell
+   ---------------------------------------------------------------- */
+.page {
+  min-height: 100svh;
+  background-color: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* ----------------------------------------------------------------
+   Hero section
+   ---------------------------------------------------------------- */
+.hero {
+  position: relative;
+  background: linear-gradient(175deg, #0a1628 0%, #0d1f45 45%, #102560 70%, #1a3a7a 100%);
+  padding-top: calc(var(--safe-top) + var(--space-4));
+  padding-bottom: var(--space-16);
+  padding-inline: var(--space-6);
+  overflow: hidden;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ambient glow blobs */
+.heroGlow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 55% at 75% 30%, rgba(51, 125, 249, 0.28) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 45% at 20% 65%, rgba(51, 125, 249, 0.15) 0%, transparent 65%);
+  pointer-events: none;
+}
+
+.heroGlow2 {
+  position: absolute;
+  bottom: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, rgba(51, 125, 249, 0.18) 0%, transparent 70%);
+  pointer-events: none;
+  filter: blur(20px);
+}
+
+/* ----------------------------------------------------------------
+   Top bar — avatar + location
+   ---------------------------------------------------------------- */
+.topBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  position: relative;
+  z-index: 1;
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.20);
+  flex-shrink: 0;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.locationPill {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-family);
+}
+
+.locationLabel {
+  font-size: var(--text-xxs-size);
+  line-height: var(--text-xxs-lh);
+  font-weight: var(--text-xxs-weight);
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.locationValue {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm-size);
+  line-height: var(--text-sm-lh);
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.locationValue svg {
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+/* ----------------------------------------------------------------
+   Hero headline
+   ---------------------------------------------------------------- */
+.heroText {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: var(--space-4);
+  position: relative;
+  z-index: 1;
+}
+
+.headline {
+  font-size: var(--text-h1-size);
+  line-height: var(--text-h1-lh);
+  font-weight: var(--text-h1-weight);
+  letter-spacing: -0.025em;
+  color: #ffffff;
+  animation: fadeUp var(--duration-slower) var(--ease-out) 100ms both;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ----------------------------------------------------------------
+   Form card — overlaps the hero
+   ---------------------------------------------------------------- */
+.formCard {
+  background: var(--color-surface);
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+  margin-top: calc(-1 * var(--radius-2xl));
+  padding: var(--space-8) var(--space-6);
+  padding-bottom: calc(var(--safe-bottom) + var(--space-10));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  position: relative;
+  z-index: 2;
+  /* Subtle top shadow to emphasise the lift */
+  box-shadow: 0 -4px 24px rgba(13, 23, 42, 0.08);
+  animation: slideUp var(--duration-slower) var(--ease-out) 200ms both;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ----------------------------------------------------------------
+   Search row
+   ---------------------------------------------------------------- */
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-surface-raised);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 0 var(--space-4);
+  height: 52px;
+  transition: border-color var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.searchRow:focus-within {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-20);
+}
+
+.searchInput {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  font-weight: 400;
+  color: var(--color-text-primary);
+  /* Remove native search input chrome */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.searchInput::placeholder {
+  color: var(--color-text-disabled);
+}
+
+.searchInput::-webkit-search-cancel-button {
+  display: none;
+}
+
+.filterBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+  transition: color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+
+.filterBtn:hover,
+.filterBtn:focus-visible {
+  color: var(--color-brand);
+  background: var(--color-brand-20);
+}
+
+/* ----------------------------------------------------------------
+   Service chips — horizontal scroll row with edge fades
+   ---------------------------------------------------------------- */
+
+/*
+  The wrapper sits within the same padding as search/description.
+  overflow:hidden clips the scroll content; the mask-image fades
+  the first and last 28px so both edges visually hint at scrollability.
+*/
+.chipsWrapper {
+  position: relative;
+  overflow: hidden;
+  /* Pull 4px extra on each side so the fade doesn't eat chip padding */
+  margin-inline: -4px;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0px,
+    black 28px,
+    black calc(100% - 28px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0px,
+    black 28px,
+    black calc(100% - 28px),
+    transparent 100%
+  );
+}
+
+.chipsScroll {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  /* Mirror the 4px wrapper margin so first/last chip aren't clipped */
+  padding-inline: 4px;
+  padding-bottom: var(--space-1);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.chipsScroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* ----------------------------------------------------------------
+   Description textarea
+   ---------------------------------------------------------------- */
+.descTextarea {
+  width: 100%;
+  background: var(--color-surface-raised);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  color: var(--color-text-primary);
+  resize: none;
+  outline: none;
+  min-height: 108px;
+  transition: border-color var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out);
+  font-family: var(--font-family);
+}
+
+.descTextarea::placeholder {
+  color: var(--color-text-disabled);
+}
+
+.descTextarea:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-20);
+}
+
+/* ----------------------------------------------------------------
+   Upload drop zone
+   ---------------------------------------------------------------- */
+.uploadZone {
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-xl);
+  min-height: 112px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+  background: var(--color-surface-raised);
+  padding: var(--space-4);
+}
+
+.uploadZone:hover,
+.uploadZone:focus-visible {
+  border-color: var(--color-brand-40);
+  background: var(--color-brand-20);
+}
+
+.uploadZoneDragging {
+  border-color: var(--color-brand);
+  background: var(--color-brand-20);
+}
+
+.fileInputHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.uploadPlaceholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.uploadIcon {
+  color: var(--color-text-secondary);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.uploadZone:hover .uploadIcon,
+.uploadZoneDragging .uploadIcon {
+  color: var(--color-brand);
+}
+
+.uploadLabel {
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+/* ---- Previews ---- */
+.uploadPreviews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.previewThumb {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1.5px solid var(--color-border);
+}
+
+.previewThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.previewRemove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  background: rgba(13, 23, 42, 0.7);
+  border-radius: var(--radius-full);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.previewRemove:hover {
+  background: var(--color-error);
+}
+
+.previewAdd {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-md);
+  border: 1.5px dashed var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+/* ----------------------------------------------------------------
+   CTA Buttons
+   ---------------------------------------------------------------- */
+.ctaPrimary {
+  width: 100%;
+  height: 54px;
+  background: var(--color-brand);
+  color: #ffffff;
+  border-radius: var(--radius-full);
+  font-family: var(--font-family);
+  font-size: var(--text-body-lg-size);
+  line-height: var(--text-body-lg-lh);
+  font-weight: var(--text-body-lg-semi-weight);
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  border: none;
+  transition: background var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out),
+              transform var(--duration-fast) var(--ease-out);
+  box-shadow: var(--shadow-brand);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ctaPrimary:hover {
+  background: #1f6be8;
+  box-shadow: 0 6px 20px rgba(51, 125, 249, 0.45);
+}
+
+.ctaPrimary:active {
+  transform: scale(0.98);
+  box-shadow: var(--shadow-brand);
+}
+
+.ctaSecondary {
+  width: 100%;
+  height: 54px;
+  background: transparent;
+  color: var(--color-text-primary);
+  border-radius: var(--radius-full);
+  font-family: var(--font-family);
+  font-size: var(--text-body-lg-size);
+  line-height: var(--text-body-lg-lh);
+  font-weight: var(--text-body-lg-semi-weight);
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  border: 1.5px solid var(--color-border);
+  transition: border-color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out),
+              transform var(--duration-fast) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ctaSecondary:hover {
+  border-color: var(--color-ink-40);
+  background: var(--color-surface-subtle);
+}
+
+.ctaSecondary:active {
+  transform: scale(0.98);
+}
+
+/* ----------------------------------------------------------------
+   OR divider
+   ---------------------------------------------------------------- */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.divider span:first-child,
+.divider span:last-child {
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.dividerText {
+  font-size: var(--text-xs-size);
+  line-height: var(--text-xs-lh);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.08em;
+  flex: 0 !important;
+  height: auto !important;
+  background: none !important;
+}
+
+/* ================================================================
+   Responsive — tablet & desktop
+   ================================================================ */
+
+/* ---- Tablet: 640px+ ---- */
+@media (min-width: 640px) {
+  .hero {
+    min-height: 360px;
+    padding-inline: var(--space-10);
+  }
+
+  .topBar {
+    max-width: var(--max-width-content);
+    margin-inline: auto;
+    width: 100%;
+  }
+
+  .heroText {
+    max-width: var(--max-width-content);
+    margin-inline: auto;
+    width: 100%;
+  }
+
+  .headline {
+    font-size: 2.5rem;
+    line-height: 3rem;
+  }
+
+  .formCard {
+    padding-inline: var(--space-10);
+  }
+}
+
+/* ---- Desktop: 768px+ ---- */
+@media (min-width: 768px) {
+  /* Remove mobile body cap so the layout fills the viewport */
+  /* (body max-width is set in globals.css; we override layout here) */
+
+  .page {
+    min-height: 100svh;
+  }
+
+  .hero {
+    min-height: 420px;
+    padding-inline: clamp(var(--space-10), 8vw, 10rem);
+  }
+
+  .topBar,
+  .heroText {
+    max-width: var(--max-width-content);
+    margin-inline: auto;
+    width: 100%;
+  }
+
+  .headline {
+    font-size: clamp(2rem, 4vw, 3rem);
+    line-height: 1.15;
+  }
+
+  .formCard {
+    /* Center a readable content column */
+    padding-inline: clamp(var(--space-10), 8vw, 10rem);
+  }
+
+  /* Cap the form elements to match a comfortable reading column */
+  .searchRow,
+  .chipsWrapper,
+  .descTextarea,
+  .uploadZone,
+  .ctaPrimary,
+  .ctaSecondary,
+  .divider {
+    max-width: var(--max-width-content);
+    margin-inline: auto;
+    width: 100%;
+  }
+}
+
+/* ---- Wide desktop: 1024px+ ---- */
+@media (min-width: 1024px) {
+  .hero {
+    min-height: 480px;
+  }
+
+  .headline {
+    font-size: clamp(2.5rem, 3.5vw, 3.5rem);
+  }
+
+  .formCard {
+    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+  }
+}
