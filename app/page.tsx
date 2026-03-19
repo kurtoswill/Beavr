@@ -28,11 +28,11 @@ interface Service {
 }
 
 const SERVICES: Service[] = [
-  { label: "Plumber",      icon: Wrench     },
-  { label: "Electrician",  icon: Zap        },
-  { label: "Caregiver",    icon: Heart      },
-  { label: "Painter",      icon: Paintbrush },
-  { label: "Mover",        icon: Truck      },
+  { label: "Plumber", icon: Wrench },
+  { label: "Electrician", icon: Zap },
+  { label: "Caregiver", icon: Heart },
+  { label: "Painter", icon: Paintbrush },
+  { label: "Mover", icon: Truck },
   { label: "Not sure yet", icon: HelpCircle },
 ];
 
@@ -48,19 +48,26 @@ interface UploadedFile {
 /*  Page                                                                */
 /* ================================================================== */
 export default function LandingPage() {
-  const [query, setQuery]             = useState("");
+  const [query, setQuery] = useState("");
   const [description, setDescription] = useState("");
-  const [files, setFiles]             = useState<UploadedFile[]>([]);
-  const [dragging, setDragging]       = useState(false);
-  const [errors, setErrors]           = useState<{ query?: string; description?: string }>({});
-  const fileInputRef                  = useRef<HTMLInputElement>(null);
-  const router                        = useRouter();
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const [errors, setErrors] = useState<{
+    query?: string;
+    description?: string;
+  }>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   const handleFindSpecialist = () => {
     const newErrors: { query?: string; description?: string } = {};
     if (!query.trim()) newErrors.query = "Please tell us what you need.";
-    if (!description.trim()) newErrors.description = "Please describe the problem.";
-    if (Object.keys(newErrors).length) { setErrors(newErrors); return; }
+    if (!description.trim())
+      newErrors.description = "Please describe the problem.";
+    if (Object.keys(newErrors).length) {
+      setErrors(newErrors);
+      return;
+    }
     setErrors({});
     router.push("/worker-001");
   };
@@ -92,10 +99,9 @@ export default function LandingPage() {
   /* ---------------------------------------------------------------- */
   return (
     <main className={styles.page}>
-
       {/* ── Hero ─────────────────────────────────────────────────── */}
       <section className={styles.hero}>
-        <div className={styles.heroGlow}  aria-hidden />
+        <div className={styles.heroGlow} aria-hidden />
         <div className={styles.heroGlow2} aria-hidden />
 
         {/* Top bar */}
@@ -116,14 +122,15 @@ export default function LandingPage() {
         {/* Headline */}
         <div className={styles.heroText}>
           <h1 className={styles.headline}>
-            Built for you.<br />Done fast.
+            Built for you.
+            <br />
+            Done fast.
           </h1>
         </div>
       </section>
 
       {/* ── Form card ────────────────────────────────────────────── */}
       <section className={styles.formCard}>
-
         {/* Search */}
         <div className={styles.searchRow}>
           <input
@@ -134,30 +141,27 @@ export default function LandingPage() {
             onChange={(e) => setQuery(e.target.value)}
             aria-label="Search for a service"
           />
-          <button className={styles.filterBtn} aria-label="Filters" type="button">
-            <SlidersHorizontal size={18} strokeWidth={2} />
-          </button>
         </div>
 
         {errors.query && <p className={styles.fieldError}>{errors.query}</p>}
 
         {/* ── Service chips ── */}
         <div className={styles.chipsWrapper}>
-        <div
-          className={styles.chipsScroll}
-          role="group"
-          aria-label="Quick service selection"
-        >
-          {SERVICES.map((s) => (
-            <ServiceChip
-              key={s.label}
-              label={s.label}
-              icon={s.icon}
-              selected={query === s.label}
-              onClick={handleChipClick}
-            />
-          ))}
-        </div>
+          <div
+            className={styles.chipsScroll}
+            role="group"
+            aria-label="Quick service selection"
+          >
+            {SERVICES.map((s) => (
+              <ServiceChip
+                key={s.label}
+                label={s.label}
+                icon={s.icon}
+                selected={query === s.label}
+                onClick={handleChipClick}
+              />
+            ))}
+          </div>
         </div>
 
         {/* Describe */}
@@ -170,12 +174,17 @@ export default function LandingPage() {
           aria-label="Describe the problem"
         />
 
-        {errors.description && <p className={styles.fieldError}>{errors.description}</p>}
+        {errors.description && (
+          <p className={styles.fieldError}>{errors.description}</p>
+        )}
 
         {/* Upload drop zone */}
         <div
           className={`${styles.uploadZone} ${dragging ? styles.uploadZoneDragging : ""}`}
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
           onDragLeave={() => setDragging(false)}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
@@ -195,8 +204,15 @@ export default function LandingPage() {
 
           {files.length === 0 ? (
             <div className={styles.uploadPlaceholder}>
-              <CloudUpload size={32} strokeWidth={1.5} className={styles.uploadIcon} />
-              <span className={styles.uploadLabel}>Upload photos or videos <span className={styles.optionalTag}>(optional)</span></span>
+              <CloudUpload
+                size={32}
+                strokeWidth={1.5}
+                className={styles.uploadIcon}
+              />
+              <span className={styles.uploadLabel}>
+                Upload photos or videos{" "}
+                <span className={styles.optionalTag}>(optional)</span>
+              </span>
             </div>
           ) : (
             <div className={styles.uploadPreviews}>
@@ -206,7 +222,10 @@ export default function LandingPage() {
                   <button
                     className={styles.previewRemove}
                     aria-label={`Remove ${f.name}`}
-                    onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeFile(i);
+                    }}
                   >
                     <X size={10} strokeWidth={3} />
                   </button>
@@ -234,10 +253,12 @@ export default function LandingPage() {
         </div>
 
         {/* Secondary CTA */}
-        <button className={styles.ctaSecondary} onClick={() => router.push("/onboard")}>
+        <button
+          className={styles.ctaSecondary}
+          onClick={() => router.push("/onboard")}
+        >
           Become a specialist
         </button>
-
       </section>
     </main>
   );
