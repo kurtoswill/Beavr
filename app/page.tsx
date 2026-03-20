@@ -1,12 +1,9 @@
 "use client";
-
-import Image from "next/image";
-import { useState, useRef, } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   MapPin,
   ChevronDown,
-  SlidersHorizontal,
   CloudUpload,
   X,
   Wrench,
@@ -43,12 +40,14 @@ const SERVICES: Service[] = [
 interface UploadedFile {
   name: string;
   preview: string;
+  file: File;  // ✅ Added for API upload
 }
 
 /* ================================================================== */
 /*  Page                                                                */
 /* ================================================================== */
 export default function LandingPage() {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<UploadedFile[]>([]);
@@ -57,20 +56,92 @@ export default function LandingPage() {
     query?: string;
     description?: string;
   }>({});
+  const [isLoading, setIsLoading] = useState(false);  // ✅ Added loading state
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
 
-  const handleFindSpecialist = () => {
+  // Test customer ID (replace with auth later)
+  const CUSTOMER_ID = "dc8e8fd1-3dff-474e-a3b5-fbe005e9d636";
+
+  /* ---- Upload image to Supabase Storage ---- */
+  const uploadImage = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("bucket", "job-images");
+
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Failed to upload image");
+    }
+
+    return data.url;
+  };
+
+  /* ---- Create job via API ---- */
+  const createJob = async (imageUrls: string[]): Promise<string> => {
+    const response = await fetch("/api/jobs", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        customer_id: CUSTOMER_ID,
+        profession: query || "General Handyman",
+        description,
+        street_address: "Bancod, Indang, Cavite",
+        province: "Cavite",
+        municipality: "Indang",
+        barangay: "Bancod",
+        photos: imageUrls.length > 0 ? imageUrls : null,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Failed to create job");
+    }
+
+    return data.job.id;
+  };
+
+  /* ---- Handle Find Specialist ---- */
+  const handleFindSpecialist = async () => {
     const newErrors: { query?: string; description?: string } = {};
     if (!query.trim()) newErrors.query = "Please tell us what you need.";
     if (!description.trim())
       newErrors.description = "Please describe the problem.";
+
     if (Object.keys(newErrors).length) {
       setErrors(newErrors);
       return;
     }
+
     setErrors({});
-    router.push("/worker-001");
+    setIsLoading(true);  // ✅ Set loading
+
+    try {
+      // Step 1: Upload all images
+      const imageUrls = await Promise.all(
+        files.map((f) => uploadImage(f.file))
+      );
+
+      // Step 2: Create job
+      const jobId = await createJob(imageUrls);
+
+      // Step 3: Redirect to tracking page
+      router.push(`/tracking/${jobId}`);
+    } catch (error) {
+      console.error("Error creating job:", error);
+      alert("Failed to create job. Please try again.");
+    } finally {
+      setIsLoading(false);  // ✅ Reset loading
+    }
   };
 
   /* ---- File helpers ---- */
@@ -78,7 +149,11 @@ export default function LandingPage() {
     if (!incoming) return;
     const next: UploadedFile[] = Array.from(incoming)
       .filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"))
-      .map((f) => ({ name: f.name, preview: URL.createObjectURL(f) }));
+      .map((f) => ({
+        name: f.name,
+        preview: URL.createObjectURL(f),
+        file: f,  // ✅ Store file object for upload
+      }));
     setFiles((prev) => [...prev, ...next].slice(0, 6));
   };
 
@@ -93,7 +168,6 @@ export default function LandingPage() {
 
   /* ---- Chip selection ---- */
   const handleChipClick = (label: string) => {
-    // Toggle: clicking the active chip deselects it
     setQuery((prev) => (prev === label ? "" : label));
   };
 
@@ -108,7 +182,13 @@ export default function LandingPage() {
         {/* Top bar */}
         <header className={styles.topBar}>
           <div className={styles.avatar}>
-            <Image src="https://i.pravatar.cc/80?img=47" alt="User avatar" width={80} height={80} />
+            {/* ✅ Use regular img tag for external URLs */}
+            <img
+              src="https://i.pravatar.cc/80?img=47"
+              alt="User avatar"
+              width={80}
+              height={80}
+            />
           </div>
           <button className={styles.locationPill} aria-label="Change location">
             <span className={styles.locationLabel}>Your location</span>
@@ -143,7 +223,6 @@ export default function LandingPage() {
             aria-label="Search for a service"
           />
         </div>
-
         {errors.query && <p className={styles.fieldError}>{errors.query}</p>}
 
         {/* ── Service chips ── */}
@@ -174,14 +253,15 @@ export default function LandingPage() {
           rows={4}
           aria-label="Describe the problem"
         />
-
         {errors.description && (
           <p className={styles.fieldError}>{errors.description}</p>
         )}
 
         {/* Upload drop zone */}
         <div
-          className={`${styles.uploadZone} ${dragging ? styles.uploadZoneDragging : ""}`}
+          className={`${styles.uploadZone} ${
+            dragging ? styles.uploadZoneDragging : ""
+          }`}
           onDragOver={(e) => {
             e.preventDefault();
             setDragging(true);
@@ -192,7 +272,9 @@ export default function LandingPage() {
           role="button"
           tabIndex={0}
           aria-label="Upload photos or videos"
-          onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
+          onKeyDown={(e) =>
+            e.key === "Enter" && fileInputRef.current?.click()
+          }
         >
           <input
             ref={fileInputRef}
@@ -202,7 +284,6 @@ export default function LandingPage() {
             className={styles.fileInputHidden}
             onChange={(e) => addFiles(e.target.files)}
           />
-
           {files.length === 0 ? (
             <div className={styles.uploadPlaceholder}>
               <CloudUpload
@@ -219,7 +300,8 @@ export default function LandingPage() {
             <div className={styles.uploadPreviews}>
               {files.map((f, i) => (
                 <div key={i} className={styles.previewThumb}>
-                  <Image src={f.preview} alt={f.name} />
+                  {/* ✅ Use regular img tag for preview */}
+                  <img src={f.preview} alt={f.name} />
                   <button
                     className={styles.previewRemove}
                     aria-label={`Remove ${f.name}`}
@@ -242,8 +324,12 @@ export default function LandingPage() {
         </div>
 
         {/* Primary CTA */}
-        <button className={styles.ctaPrimary} onClick={handleFindSpecialist}>
-          Find a specialist
+        <button
+          className={styles.ctaPrimary}
+          onClick={handleFindSpecialist}
+          disabled={isLoading}
+        >
+          {isLoading ? "Creating job..." : "Find a specialist"}
         </button>
 
         {/* Divider */}
