@@ -1,126 +1,213 @@
 "use client";
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Zap,
-  Star,
   Wallet,
   CheckCircle2,
-  MapPin,
   TrendingUp,
   BellDot,
-  ArrowUpRight,
   CalendarDays,
-  ThumbsUp,
   Navigation,
   Clock,
   X,
   ChevronRight,
   ImageIcon,
+  ArrowUpRight,
 } from "lucide-react";
 import styles from "./page.module.css";
 
 /* ------------------------------------------------------------------ */
-/*  Data                                                                */
+/*  Types - From Database Schema                                        */
 /* ------------------------------------------------------------------ */
-const SPECIALIST = {
-  name:           "Kurt Oswill McCarver",
-  avatar:         "https://images.unsplash.com/photo-1621905251918-48416bd8575a?w=200&q=80",
-  role:           "Electrician",
-  rating:         4.2,
-  reviews:        203,
-  completionRate: 100,
-  totalEarned:    40_200,
-  thisWeek:       3_500,
-  pending:        500,
-  responseRate:   94,
-  level:          "Top Rated",
-};
 
-const STATS = [
-  { label: "Completion", value: `${SPECIALIST.completionRate}%`,                                                    sub: "Rate",    accent: "green"  },
-  { label: "Rating",     value: SPECIALIST.rating.toFixed(1),                                                       sub: `${SPECIALIST.reviews} reviews`, accent: "yellow" },
-  { label: "Earned",     value: `₱${(SPECIALIST.totalEarned / 1000).toFixed(1)}k`,                             sub: "All time", accent: "brand"  },
-  { label: "Response",   value: `${SPECIALIST.responseRate}%`,                                                      sub: "Rate",    accent: "blue"   },
-];
+// Job from Supabase
+interface Job {
+  id: string;
+  customer_id: string;
+  profession: string;
+  description: string;
+  status: string;
+  street_address?: string;
+  province?: string;
+  municipality?: string;
+  barangay?: string;
+  photos?: string[];
+  created_at: string;
+  completed_at?: string;
+  specialist_id?: string;
+  worker_id?: string;
+  accepted_at?: string;
+}
 
+// Quote from Supabase
+interface Quote {
+  id: string;
+  job_id: string;
+  worker_id: string;
+  proposed_rate: number;
+  estimated_arrival?: number;
+  status: string;
+  created_at: string;
+}
+
+// Specialist from Supabase
+interface Specialist {
+  id: string;
+  user_id: string;
+  profession: string;
+  rating_avg?: number;
+  jobs_completed?: number;
+  is_online?: boolean;
+  is_verified?: boolean;
+  created_at: string;
+  profiles?: {
+    full_name?: string;
+    avatar_url?: string;
+    email?: string;
+    phone?: string;
+  };
+}
+
+// Profile from Supabase
+interface Profile {
+  id: string;
+  full_name?: string;
+  avatar_url?: string;
+  email?: string;
+  phone?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Types - Frontend Display                                            */
+/* ------------------------------------------------------------------ */
 export interface JobOffer {
   id: string;
-  clientName:   string;
+  clientName: string;
   clientAvatar: string;
-  date:         string;
-  time:         string;
-  service:      string;
-  description:  string;
-  location:     string;
-  distance:     string;
-  eta:          string;
+  date: string;
+  time: string;
+  service: string;
+  description: string;
+  location: string;
+  distance: string;
+  eta: string;
   suggestedRate: number;
-  images?:      string[];
+  images?: string[];
+  customer_id?: string;
 }
 
 interface CompletedJob {
   id: string;
-  clientName:   string;
+  clientName: string;
   clientAvatar: string;
-  date:         string;
-  service:      string;
-  amount:       number;
+  date: string;
+  service: string;
+  amount: number;
 }
 
-const OFFERS: JobOffer[] = [
-  {
-    id: "1",
-    clientName:   "Kazel Arwen Jane Tuazon",
-    clientAvatar: "https://i.pravatar.cc/80?img=5",
-    date:         "March 14, 2026",
-    time:         "5:20 pm",
-    service:      "Electrical",
-    description:  "I need someone to continue fixing the wires, the original worker died yesterday.",
-    location:     "Bancod, Indang, Cavite",
-    distance:     "2.1 km",
-    eta:          "8 min",
+interface SpecialistProfile {
+  id: string;
+  name: string;
+  avatar: string;
+  role: string;
+  rating: number;
+  reviews: number;
+  completionRate: number;
+  totalEarned: number;
+  thisWeek: number;
+  pending: number;
+  responseRate: number;
+}
+
+// API Response types
+interface JobsResponse {
+  success: boolean;
+  jobs?: Job[];
+  error?: string;
+}
+
+interface SpecialistResponse {
+  success: boolean;
+  specialists?: Specialist[];
+  specialist?: Specialist;
+  error?: string;
+}
+
+interface QuotesResponse {
+  success: boolean;
+  quotes?: Quote[];
+  quote?: Quote;
+  error?: string;
+}
+
+interface ProfilesResponse {
+  success: boolean;
+  profile?: Profile;
+  error?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Helper: Map job from API to JobOffer format                        */
+/* ------------------------------------------------------------------ */
+function mapJobToOffer(
+  job: Job,
+  customerName?: string,
+  customerAvatar?: string
+): JobOffer {
+  return {
+    id: job.id,
+    clientName: customerName || "Customer",
+    clientAvatar: customerAvatar || "https://i.pravatar.cc/80?img=5",
+    date: new Date(job.created_at).toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }),
+    time: new Date(job.created_at).toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    service: job.profession,
+    description: job.description,
+    location: [job.barangay, job.municipality, job.province]
+      .filter(Boolean)
+      .join(", "),
+    distance: "2.1 km",
+    eta: "8 min",
     suggestedRate: 500,
-    images: [
-      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=300&q=70",
-      "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?w=300&q=70",
-    ],
-  },
-  {
-    id: "2",
-    clientName:   "Mark Santos",
-    clientAvatar: "https://i.pravatar.cc/80?img=12",
-    date:         "March 14, 2026",
-    time:         "6:00 pm",
-    service:      "Electrical",
-    description:  "Panel box needs full inspection and possible replacement of breakers.",
-    location:     "Lumampong, Indang, Cavite",
-    distance:     "4.5 km",
-    eta:          "15 min",
-    suggestedRate: 800,
-  },
-];
-
-const COMPLETED: CompletedJob[] = [
-  { id: "c1", clientName: "Ana Reyes",      clientAvatar: "https://i.pravatar.cc/80?img=25", date: "March 12, 2026", service: "Electrical", amount: 1_200 },
-  { id: "c2", clientName: "Jose Dela Cruz", clientAvatar: "https://i.pravatar.cc/80?img=33", date: "March 11, 2026", service: "Electrical", amount: 1_500 },
-];
+    images: job.photos,
+    customer_id: job.customer_id,
+  };
+}
 
 /* ------------------------------------------------------------------ */
-/*  Toggle                                                              */
+/*  Toggle Component                                                    */
 /* ------------------------------------------------------------------ */
-function Toggle({ on, onChange, label }: { on: boolean; onChange: () => void; label: string }) {
+function Toggle({
+  on,
+  onChange,
+  label,
+}: {
+  on: boolean;
+  onChange: () => void;
+  label: string;
+}) {
   return (
-    <button className={`${styles.toggle} ${on ? styles.toggleOn : ""}`}
-      onClick={onChange} role="switch" aria-checked={on} aria-label={label}>
+    <button
+      className={`${styles.toggle} ${on ? styles.toggleOn : ""}`}
+      onClick={onChange}
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+    >
       <span className={styles.toggleThumb} />
     </button>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  Job Offer modal                                                     */
+/*  Job Offer Modal                                                     */
 /* ------------------------------------------------------------------ */
 function JobOfferModal({
   offer,
@@ -134,7 +221,6 @@ function JobOfferModal({
   onClose: () => void;
 }) {
   const [rate, setRate] = useState(String(offer.suggestedRate));
-
   const handleAccept = () => {
     const n = parseInt(rate, 10);
     onAccept(isNaN(n) || n <= 0 ? offer.suggestedRate : n);
@@ -142,18 +228,17 @@ function JobOfferModal({
 
   return (
     <div className={styles.modalBackdrop} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}
-        role="dialog" aria-modal="true" aria-label="Job offer details">
-
-        {/* Close */}
+      <div
+        className={styles.modal}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Job offer details"
+      >
         <button className={styles.modalClose} onClick={onClose} aria-label="Close">
           <X size={18} strokeWidth={2.5} />
         </button>
-
-        {/* Handle */}
         <div className={styles.modalHandle} aria-hidden />
-
-        {/* Client */}
         <div className={styles.modalClient}>
           <img src={offer.clientAvatar} alt={offer.clientName} className={styles.modalClientAvatar} />
           <div className={styles.modalClientInfo}>
@@ -168,18 +253,8 @@ function JobOfferModal({
             <span>{offer.service}</span>
           </div>
         </div>
-
         <div className={styles.modalDivider} />
-
-        {/* Detail rows */}
         <div className={styles.modalDetails}>
-          <div className={styles.modalDetailRow}>
-            <MapPin size={14} strokeWidth={2} className={styles.modalDetailIcon} />
-            <div>
-              <span className={styles.modalDetailLabel}>Location</span>
-              <span className={styles.modalDetailValue}>{offer.location}</span>
-            </div>
-          </div>
           <div className={styles.modalDetailRow}>
             <Navigation size={14} strokeWidth={2} className={styles.modalDetailIcon} />
             <div>
@@ -187,38 +262,25 @@ function JobOfferModal({
               <span className={styles.modalDetailValue}>{offer.distance} · {offer.eta} away</span>
             </div>
           </div>
-          <div className={styles.modalDetailRow}>
-            <Clock size={14} strokeWidth={2} className={styles.modalDetailIcon} />
-            <div>
-              <span className={styles.modalDetailLabel}>Requested at</span>
-              <span className={styles.modalDetailValue}>{offer.time}</span>
-            </div>
-          </div>
         </div>
-
         <div className={styles.modalDivider} />
-
-        {/* Problem description */}
         <div className={styles.modalSection}>
           <span className={styles.modalSectionTitle}>Problem description</span>
           <p className={styles.modalDesc}>{offer.description}</p>
         </div>
-
-        {/* Images */}
         {offer.images && offer.images.length > 0 && (
           <div className={styles.modalImages}>
-            {offer.images.map((src, i) => (
+            {offer.images.map((src: string, i: number) => (
               <img key={i} src={src} alt={`Photo ${i + 1}`} className={styles.modalImage} />
             ))}
           </div>
         )}
-
         <div className={styles.modalDivider} />
-
-        {/* Rate input */}
         <div className={styles.modalSection}>
           <span className={styles.modalSectionTitle}>Your rate</span>
-          <p className={styles.modalRateHint}>Suggested: ₱{offer.suggestedRate.toLocaleString()}. Set your own price for this job.</p>
+          <p className={styles.modalRateHint}>
+            Suggested: ₱{offer.suggestedRate.toLocaleString()}. Set your own price for this job.
+          </p>
           <div className={styles.rateInputWrap}>
             <span className={styles.ratePrefix}>₱</span>
             <input
@@ -231,8 +293,6 @@ function JobOfferModal({
             />
           </div>
         </div>
-
-        {/* Actions */}
         <div className={styles.modalActions}>
           <button className={styles.rejectBtn} onClick={onReject}>Reject</button>
           <button className={styles.acceptBtn} onClick={handleAccept}>Accept job</button>
@@ -243,7 +303,7 @@ function JobOfferModal({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Offer card (compact, list item)                                     */
+/*  Offer Card                                                          */
 /* ------------------------------------------------------------------ */
 function OfferCard({ offer, onView }: { offer: JobOffer; onView: () => void }) {
   return (
@@ -259,7 +319,6 @@ function OfferCard({ offer, onView }: { offer: JobOffer; onView: () => void }) {
         </div>
         <span className={styles.badgeNew}>New</span>
       </div>
-
       <div className={styles.jobTags}>
         <div className={styles.serviceChip}>
           <Zap size={11} strokeWidth={2} />
@@ -270,16 +329,13 @@ function OfferCard({ offer, onView }: { offer: JobOffer; onView: () => void }) {
           <span>{offer.distance} · {offer.eta}</span>
         </div>
       </div>
-
       <p className={styles.jobDesc}>{offer.description}</p>
-
       {offer.images && (
         <div className={styles.offerImageHint}>
           <ImageIcon size={12} strokeWidth={2} />
           <span>{offer.images.length} photo{offer.images.length > 1 ? "s" : ""} attached</span>
         </div>
       )}
-
       <div className={styles.jobFooter}>
         <button className={styles.viewDetailsBtn} onClick={onView}>
           View details <ChevronRight size={13} strokeWidth={2} />
@@ -290,7 +346,7 @@ function OfferCard({ offer, onView }: { offer: JobOffer; onView: () => void }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Completed job card                                                  */
+/*  Completed Job Card                                                  */
 /* ------------------------------------------------------------------ */
 function CompletedCard({ job }: { job: CompletedJob }) {
   return (
@@ -312,69 +368,247 @@ function CompletedCard({ job }: { job: CompletedJob }) {
 }
 
 /* ================================================================== */
-/*  Page                                                                */
+/*  Main Dashboard Page                                                */
 /* ================================================================== */
 export default function SpecialistDashboard() {
   const router = useRouter();
+  
+  // State for specialist profile (fetched from API)
+  const [specialist, setSpecialist] = useState<SpecialistProfile | null>(null);
+  const [isLoadingSpecialist, setIsLoadingSpecialist] = useState(true);
+  
+  // UI state
   const [autoAccept, setAutoAccept] = useState(true);
-  const [online, setOnline]         = useState(true);
-  const [activeTab, setActiveTab]   = useState<"offers" | "completed">("offers");
-  const [offers, setOffers]         = useState<JobOffer[]>(OFFERS);
+  const [online, setOnline] = useState(true);
+  const [activeTab, setActiveTab] = useState<"offers" | "completed">("offers");
+  const [offers, setOffers] = useState<JobOffer[]>([]);
+  const [completedJobs, setCompletedJobs] = useState<CompletedJob[]>([]);
   const [selectedOffer, setSelectedOffer] = useState<JobOffer | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Dynamic earnings state
+  const [thisWeek, setThisWeek] = useState(0);
+  const [pending, setPending] = useState(0);
 
-  const handleAccept = (rate: number) => {
-    if (!selectedOffer) return;
-    // Navigate to specialist tracker for this job
-    router.push(`/specialist/job/${selectedOffer.id}`);
+  // Fetch specialist profile from API
+  useEffect(() => {
+    const fetchSpecialist = async () => {
+      try {
+        // Get first available specialist (replace with auth later)
+        const res = await fetch('/api/specialists?limit=1');
+        const data: SpecialistResponse = await res.json();
+        
+        if (data.success && data.specialists && data.specialists.length > 0) {
+          const spec = data.specialists[0];
+          setSpecialist({
+            id: spec.id,
+            name: spec.profiles?.full_name || 'Specialist',
+            avatar: spec.profiles?.avatar_url || 'https://i.pravatar.cc/80?img=5',
+            role: spec.profession || 'General',
+            rating: spec.rating_avg || 4.5,
+            reviews: spec.jobs_completed || 0,
+            completionRate: 100,
+            totalEarned: 0,
+            thisWeek: 0,
+            pending: 0,
+            responseRate: 100,
+          });
+        } else {
+          console.warn('No specialists found, using fallback');
+          setSpecialist(null);
+        }
+      } catch (error) {
+        console.error('Failed to fetch specialist:', error);
+        setSpecialist(null);
+      } finally {
+        setIsLoadingSpecialist(false);
+      }
+    };
+    
+    fetchSpecialist();
+  }, []);
+
+  // Fetch pending jobs
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        setIsLoading(true);
+        const res = await fetch("/api/jobs?status=pending");
+        const data: JobsResponse = await res.json();
+        
+        if (data.success && data.jobs) {
+          const mappedOffers = data.jobs.map((job: Job) => mapJobToOffer(job));
+          setOffers(mappedOffers);
+        }
+      } catch (error) {
+        console.error("Failed to fetch jobs:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchJobs();
+  }, []);
+
+  // Fetch completed jobs and calculate earnings
+  useEffect(() => {
+    const fetchCompleted = async () => {
+      if (!specialist?.id) return;
+      
+      try {
+        const res = await fetch("/api/jobs?status=completed");
+        const data: JobsResponse = await res.json();
+        
+        if (data.success && data.jobs) {
+          // Filter jobs for this specialist
+          const specialistJobs = data.jobs.filter(
+            (job: Job) => job.specialist_id === specialist.id || job.worker_id === specialist.id
+          );
+          
+          const completed = await Promise.all(
+            specialistJobs.map(async (job: Job) => {
+              // Get the quote/proposed rate for this job
+              const quoteRes = await fetch(`/api/quotes?job_id=${job.id}`);
+              const quoteData: QuotesResponse = await quoteRes.json();
+              const rate = quoteData.quotes?.[0]?.proposed_rate || 500;
+              
+              // TODO: Fetch customer profile for name/avatar
+              return {
+                id: job.id,
+                clientName: "Customer",
+                clientAvatar: "https://i.pravatar.cc/80?img=5",
+                date: new Date(job.completed_at || job.created_at).toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                }),
+                service: job.profession,
+                amount: rate,
+              };
+            })
+          );
+          
+          setCompletedJobs(completed);
+          
+          // Calculate total earnings from completed jobs
+          const total = completed.reduce((sum: number, job: CompletedJob) => sum + job.amount, 0);
+          setThisWeek(total);
+        }
+      } catch (error) {
+        console.error("Failed to fetch completed jobs:", error);
+      }
+    };
+    
+    fetchCompleted();
+  }, [specialist?.id]);
+
+  const handleAccept = async (rate: number) => {
+    if (!selectedOffer || !specialist?.id) return;
+    
+    try {
+      const quoteRes = await fetch("/api/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          job_id: selectedOffer.id,
+          worker_id: specialist.id,
+          proposed_rate: rate,
+          estimated_arrival: 30,
+        }),
+      });
+      
+      const quoteData: QuotesResponse = await quoteRes.json();
+      
+      if (quoteData.success) {
+        const jobRes = await fetch(`/api/jobs/${selectedOffer.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: "bid_accepted",
+            specialist_id: specialist.id,
+          }),
+        });
+        
+        const jobData = await jobRes.json();
+        
+        if (jobData.success) {
+          setPending((prev) => prev + rate);
+          setOffers((prev) => prev.filter((o) => o.id !== selectedOffer.id));
+          setSelectedOffer(null);
+          router.push(`/specialist/job/${selectedOffer.id}`);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to accept job:", error);
+      alert("Failed to accept job. Please try again.");
+    }
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!selectedOffer) return;
-    setOffers((prev) => prev.filter((o) => o.id !== selectedOffer.id));
-    setSelectedOffer(null);
+    try {
+      setOffers((prev) => prev.filter((o) => o.id !== selectedOffer.id));
+      setSelectedOffer(null);
+    } catch (error) {
+      console.error("Failed to reject job:", error);
+    }
   };
+
+  // Show loading while fetching specialist
+  if (!specialist || isLoadingSpecialist) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.emptyState}>
+          <Clock size={32} strokeWidth={1.5} className={styles.emptyIcon} />
+          <span className={styles.emptyText}>Loading profile...</span>
+        </div>
+      </div>
+    );
+  }
+
+  const STATS = [
+    { label: "Completion", value: `${specialist.completionRate}%`, sub: "Rate", accent: "green" },
+    { label: "Rating", value: specialist.rating.toFixed(1), sub: `${specialist.reviews} reviews`, accent: "yellow" },
+    { label: "Earned", value: `₱${(thisWeek / 1000).toFixed(1)}k`, sub: "This week", accent: "brand" },
+    { label: "Response", value: `${specialist.responseRate}%`, sub: "Rate", accent: "blue" },
+  ];
 
   return (
     <div className={styles.page}>
-
-      {/* ── Hero ────────────────────────────────────────────────── */}
+      {/* Header */}
       <header className={styles.hero}>
         <div className={styles.heroGlow} aria-hidden />
-
         <div className={styles.heroTop}>
           <div className={styles.heroAvatarWrap}>
-            <img src={SPECIALIST.avatar} alt={SPECIALIST.name} className={styles.heroAvatar} />
+            <img src={specialist.avatar} alt={specialist.name} className={styles.heroAvatar} />
             <span className={`${styles.onlineDot} ${online ? styles.onlineDotActive : ""}`} />
           </div>
           <div className={styles.heroIdentity}>
-<span className={styles.heroName}>{SPECIALIST.name}</span>
+            <span className={styles.heroName}>{specialist.name}</span>
             <div className={styles.heroRole}>
               <Zap size={12} strokeWidth={2} />
-              <span>{SPECIALIST.role}</span>
+              <span>{specialist.role}</span>
             </div>
           </div>
           <button className={styles.notifBtn} aria-label="Notifications">
             <BellDot size={20} strokeWidth={2} />
           </button>
         </div>
-
         <div className={styles.earningsCard}>
           <div className={styles.earningsPrimary}>
             <span className={styles.earningsCurrency}>₱</span>
-            <span className={styles.earningsValue}>{SPECIALIST.thisWeek.toLocaleString()}</span>
+            <span className={styles.earningsValue}>{thisWeek.toLocaleString()}</span>
           </div>
           <span className={styles.earningsLabel}>This week</span>
           <div className={styles.earningsMeta}>
             <TrendingUp size={12} strokeWidth={2} className={styles.earningsIcon} />
-            <span>₱{SPECIALIST.pending.toLocaleString()} pending</span>
+            <span>₱{pending.toLocaleString()} pending</span>
           </div>
         </div>
       </header>
 
-      {/* ── Content ─────────────────────────────────────────────── */}
+      {/* Main Content */}
       <main className={styles.content}>
-
-        {/* Stats */}
         <div className={styles.statsGrid}>
           {STATS.map((s) => (
             <div key={s.label} className={`${styles.statCard} ${styles[`stat_${s.accent}`]}`}>
@@ -385,7 +619,6 @@ export default function SpecialistDashboard() {
           ))}
         </div>
 
-        {/* Settings */}
         <div className={styles.settingsGroup}>
           <div className={styles.settingRow}>
             <div className={styles.settingLabel}>
@@ -398,7 +631,7 @@ export default function SpecialistDashboard() {
           <div className={styles.settingRow}>
             <div className={styles.settingLabel}>
               <span className={styles.settingTitle}>Available</span>
-              <span className={styles.settingDesc}>You're visible to customers</span>
+              <span className={styles.settingDesc}>You&apos;re visible to customers</span>
             </div>
             <Toggle on={online} onChange={() => setOnline((v) => !v)} label="Toggle availability" />
           </div>
@@ -414,43 +647,48 @@ export default function SpecialistDashboard() {
           </button>
         </div>
 
-        {/* Job list */}
         <section className={styles.jobSection}>
           <div className={styles.jobSectionHeader}>
             <h2 className={styles.jobSectionTitle}>Job list</h2>
             <div className={styles.jobTabs}>
-              <button className={`${styles.jobTab} ${activeTab === "offers" ? styles.jobTabActive : ""}`}
-                onClick={() => setActiveTab("offers")}>
+              <button
+                className={`${styles.jobTab} ${activeTab === "offers" ? styles.jobTabActive : ""}`}
+                onClick={() => setActiveTab("offers")}
+              >
                 Offers {offers.length > 0 && <span className={styles.tabBadge}>{offers.length}</span>}
               </button>
-              <button className={`${styles.jobTab} ${activeTab === "completed" ? styles.jobTabActive : ""}`}
-                onClick={() => setActiveTab("completed")}>
-                Completed
+              <button
+                className={`${styles.jobTab} ${activeTab === "completed" ? styles.jobTabActive : ""}`}
+                onClick={() => setActiveTab("completed")}
+              >
+                Completed {completedJobs.length > 0 && <span className={styles.tabBadge}>{completedJobs.length}</span>}
               </button>
             </div>
           </div>
 
           <div className={styles.jobList}>
             {activeTab === "offers" && (
-              offers.length === 0
-                ? <div className={styles.emptyState}>
-                    <CheckCircle2 size={32} strokeWidth={1.5} className={styles.emptyIcon} />
-                    <span className={styles.emptyText}>No new job offers right now</span>
-                  </div>
-                : offers.map((o) => (
-                    <OfferCard key={o.id} offer={o} onView={() => setSelectedOffer(o)} />
-                  ))
+              isLoading ? (
+                <div className={styles.emptyState}>
+                  <Clock size={32} strokeWidth={1.5} className={styles.emptyIcon} />
+                  <span className={styles.emptyText}>Loading jobs...</span>
+                </div>
+              ) : offers.length === 0 ? (
+                <div className={styles.emptyState}>
+                  <CheckCircle2 size={32} strokeWidth={1.5} className={styles.emptyIcon} />
+                  <span className={styles.emptyText}>No new job offers right now</span>
+                </div>
+              ) : (
+                offers.map((o) => <OfferCard key={o.id} offer={o} onView={() => setSelectedOffer(o)} />)
+              )
             )}
-            {activeTab === "completed" && COMPLETED.map((c) => (
-              <CompletedCard key={c.id} job={c} />
-            ))}
+            {activeTab === "completed" && completedJobs.map((c) => <CompletedCard key={c.id} job={c} />)}
           </div>
         </section>
 
         <div style={{ height: 32 }} />
       </main>
 
-      {/* ── Job offer modal ──────────────────────────────────────── */}
       {selectedOffer && (
         <JobOfferModal
           offer={selectedOffer}
