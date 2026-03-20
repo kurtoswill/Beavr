@@ -437,7 +437,7 @@ export default function OnboardPage() {
   const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [mapLabel, setMapLabel] = useState<string>("");
 
-  const fetchPSGCResource = async (level: string, code?: string) => {
+  const fetchPSGCResource = async (level: string, code?: string): Promise<PSGCItem[]> => {
     const params = new URLSearchParams({ level });
     if (code) params.set("code", code);
 
@@ -464,7 +464,7 @@ export default function OnboardPage() {
       setRegions(list);
       // default region if no choice yet
       if (list.length > 0 && !data.regionCode) {
-        const calabarzon = list.find((r) => r.name.toLowerCase().includes("calabarzon") || r.code === "040000000");
+        const calabarzon = list.find((r: PSGCItem) => r.name.toLowerCase().includes("calabarzon") || r.code === "040000000");
         if (calabarzon) {
           onRegionSelect(calabarzon.code, calabarzon.name);
           return;
