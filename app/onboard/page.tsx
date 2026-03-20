@@ -6,12 +6,12 @@ import { useRouter } from "next/navigation";
 import {
   ChevronDown,
   CloudUpload,
-  MapPin,
   Check,
   X,
   BadgeCheck,
 } from "lucide-react";
 import styles from "./page.module.css";
+import { FaceVerificationModal } from "./FaceVerificationModal";
 
 const LeafletPinMap = dynamic(() => import("./LeafletMap").then((mod) => mod.LeafletPinMap), {
   ssr: false,
@@ -336,14 +336,70 @@ function Step3({ data, errors, on }: { data: FormData; errors: FieldErrors; on: 
 /* ================================================================== */
 /*  Step 4 — Verify Identity                                            */
 /* ================================================================== */
-function Step4({ data, errors, on, onSlot }: {
+function Step4({ data, errors, on, onSlot, faceVerificationStatus, onFaceVerificationChange, onOpenFaceModal }: {
   data: FormData; errors: FieldErrors;
   on: (k: keyof FormData, v: string) => void;
   onSlot: (k: keyof FormData, s: UploadSlot) => void;
+  faceVerificationStatus: "pending" | "success" | "failed";
+  onFaceVerificationChange: (status: "pending" | "success" | "failed") => void;
+  onOpenFaceModal: () => void;
 }) {
   return (
     <>
       <h2 className={styles.sectionTitle}>Verify your identity</h2>
+
+      {/* Face Verification Status */}
+      <div className={styles.fieldGroup}>
+        <FieldLabel label="Face Verification" required />
+        <div
+          style={{
+            padding: "1rem",
+            borderRadius: "8px",
+            border: faceVerificationStatus === "success" ? "2px solid #22c55e" : faceVerificationStatus === "failed" ? "2px solid #ef4444" : "2px solid #d1d5db",
+            backgroundColor: faceVerificationStatus === "success" ? "#f0fdf4" : faceVerificationStatus === "failed" ? "#fef2f2" : "#f9fafb",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            {faceVerificationStatus === "success" && (
+              <>
+                <Check size={20} strokeWidth={2.5} style={{ color: "#22c55e" }} />
+                <span style={{ color: "#16a34a", fontWeight: 500 }}>Face Verification Complete</span>
+              </>
+            )}
+            {faceVerificationStatus === "failed" && (
+              <>
+                <X size={20} strokeWidth={2.5} style={{ color: "#ef4444" }} />
+                <span style={{ color: "#dc2626", fontWeight: 500 }}>Face Verification Failed</span>
+              </>
+            )}
+            {faceVerificationStatus === "pending" && (
+              <>
+                <BadgeCheck size={20} strokeWidth={1.5} style={{ color: "#9ca3af" }} />
+                <span style={{ color: "#6b7280", fontWeight: 500 }}>Pending Face Verification</span>
+              </>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpenFaceModal()}
+            style={{
+              padding: "0.5rem 1rem",
+              backgroundColor: faceVerificationStatus === "success" ? "#dcfce7" : "#e5e7eb",
+              border: "1px solid #d1d5db",
+              borderRadius: "4px",
+              cursor: "pointer",
+              fontSize: "0.875rem",
+              fontWeight: 500,
+            }}
+          >
+            {faceVerificationStatus === "success" ? "Verify Again" : "Verify Face"}
+          </button>
+        </div>
+      </div>
+      <FieldError msg={errors.faceVerification} />
 
       <SelectField label="Type of ID" value={data.idType} onChange={(v) => on("idType", v)}
         options={ID_TYPES} required error={errors.idType} />
@@ -370,13 +426,111 @@ function Step4({ data, errors, on, onSlot }: {
 /* ================================================================== */
 /*  Step 5 — Verify (loading → result)                                  */
 /* ================================================================== */
-function Step5Verify({ fullName, role }: { fullName: string; role: string }) {
-  const [verifyState, setVerifyState] = useState<"loading" | "done">("loading");
+function Step5Verify({
+  fullName,
+  role,
+  formData,
+  faceVerificationStatus,
+  onRetry,
+}: {
+  fullName: string;
+  role: string;
+  formData: FormData;
+  faceVerificationStatus: "pending" | "success" | "failed";
+  onRetry: () => void;
+}) {
+  const [verifyState, setVerifyState] = useState<"loading" | "done" | "error">("loading");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => setVerifyState("done"), 5000);
-    return () => clearTimeout(t);
-  }, []);
+    // STOP GATE: Check face verification status
+    if (faceVerificationStatus !== "success") {
+      setVerifyState("error");
+      setErrorMsg("Face verification must be completed before submission");
+      return;
+    }
+
+    const submitOnboarding = async () => {
+      try {
+        // STEP 1: Upload files to /api/upload endpoint
+        const uploadFile = async (file: File | null, filename: string): Promise<string | null> => {
+          if (!file) return null;
+          
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('bucket', 'worker-docs');
+
+          const response = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Failed to upload ${filename}: ${errorData.error}`);
+          }
+
+          const data = await response.json();
+          return data.url;
+        };
+
+        const [idFrontUrl, idBackUrl, selfieUrl] = await Promise.all([
+          uploadFile(formData.idFront.file, 'ID Front'),
+          uploadFile(formData.idBack.file, 'ID Back'),
+          uploadFile(formData.selfie.file, 'Selfie'),
+        ]);
+
+        if (!idFrontUrl || !idBackUrl || !selfieUrl) {
+          throw new Error('Failed to upload required documents');
+        }
+
+        // STEP 2: Call onboard/verify with file URLs
+        const payload = {
+          firstName: formData.firstName,
+          middleInitial: formData.middleInitial,
+          lastName: formData.lastName,
+          email: formData.email,
+          phone: formData.phone,
+          province: formData.province,
+          municipality: formData.city,
+          barangay: formData.barangay,
+          street_address: formData.street,
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+          role: formData.role === "__custom__" ? formData.roleCustom : formData.role,
+          yearsExp: formData.yearsExp,
+          idType: formData.idType,
+          idFrontUrl,
+          idBackUrl,
+          selfieUrl,
+          faceVerificationStatus,
+        };
+
+        const response = await fetch("/api/onboard/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.error || `Verification failed with status ${response.status}`
+          );
+        }
+
+        // Simulate completion delay for UX
+        setTimeout(() => setVerifyState("done"), 2000);
+      } catch (error) {
+        console.error("Verification error:", error);
+        setErrorMsg(error instanceof Error ? error.message : "Verification failed");
+        setVerifyState("error");
+      }
+    };
+
+    const timer = setTimeout(submitOnboarding, 2000);
+    return () => clearTimeout(timer);
+  }, [faceVerificationStatus, formData]);
 
   if (verifyState === "loading") {
     return (
@@ -394,6 +548,29 @@ function Step5Verify({ fullName, role }: { fullName: string; role: string }) {
         <div className={styles.verifyDots}>
           <span /><span /><span />
         </div>
+      </div>
+    );
+  }
+
+  if (verifyState === "error") {
+    return (
+      <div className={styles.verifyScreen}>
+        <div className={styles.verifyDoneWrap}>
+          <div className={styles.verifyDoneRing2} />
+          <div className={styles.verifyDoneRing1} />
+          <div className={styles.verifyDoneCenter}>
+            <X size={28} strokeWidth={2.5} className={styles.verifyDoneCheck} style={{ color: "#ef4444" }} />
+          </div>
+        </div>
+        <h2 className={styles.verifyTitle} style={{ color: "#ef4444" }}>Verification Failed</h2>
+        <p className={styles.verifySub}>{errorMsg || "An error occurred during verification"}</p>
+        <button
+          className={`${styles.nextBtn}`}
+          onClick={onRetry}
+          style={{ marginTop: "2rem" }}
+        >
+          Try Again
+        </button>
       </div>
     );
   }
@@ -429,6 +606,9 @@ export default function OnboardPage() {
   const [step, setStep]   = useState(1);
   const [data, setData]   = useState<FormData>(EMPTY);
   const [errors, setErrors] = useState<FieldErrors>({});
+  const [faceVerificationStatus, setFaceVerificationStatus] = useState<"pending" | "success" | "failed">("pending");
+  const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
+  const [faceModalAutoStart, setFaceModalAutoStart] = useState(false);
 
   const [regions, setRegions] = useState<PSGCItem[]>([]);
   const [provinces, setProvinces] = useState<PSGCItem[]>([]);
@@ -560,6 +740,15 @@ export default function OnboardPage() {
     setErrors((e) => { const n = { ...e }; delete n[k as string]; return n; });
   };
 
+  const onRetryVerification = () => {
+    setStep(4);
+  };
+
+  const closeFaceModal = () => {
+    setIsFaceModalOpen(false);
+    setFaceModalAutoStart(false);
+  };
+
   const onRegionSelect = (code: string, name: string) => {
     setData((d) => ({
       ...d,
@@ -612,7 +801,7 @@ export default function OnboardPage() {
       if (!data.lastName.trim())       e.lastName     = "Required";
       if (!data.birthday.trim())       e.birthday     = "Required";
       if (!data.email.trim())          e.email        = "Required";
-      else if (!/\S+@\S+\.\S+/.test(data.email)) e.email = "Enter a valid email";
+      else if (!/\S+@\S+\.\S+/.test(data.email)) e.email = "Invalid email format";
       if (!data.phone.trim())          e.phone        = "Required";
     }
     if (step === 2) {
@@ -628,6 +817,7 @@ export default function OnboardPage() {
       if (!data.yearsExp)              e.yearsExp  = "Required";
     }
     if (step === 4) {
+      if (faceVerificationStatus !== "success") e.faceVerification = "Face verification must be completed";
       if (!data.idType)                e.idType  = "Required";
       if (!data.idFront.file)          e.idFront = "Please upload the front of your ID";
       if (!data.idBack.file)           e.idBack  = "Please upload the back of your ID";
@@ -683,8 +873,30 @@ export default function OnboardPage() {
             />
           )}
           {step === 3 && <Step3 data={data} errors={errors} on={onChange} />}
-          {step === 4 && <Step4 data={data} errors={errors} on={onChange} onSlot={onSlot} />}
-          {step === 5 && <Step5Verify fullName={fullName} role={displayRole} />}
+          {step === 4 && (
+            <Step4
+              data={data}
+              errors={errors}
+              on={onChange}
+              onSlot={onSlot}
+              faceVerificationStatus={faceVerificationStatus}
+              onFaceVerificationChange={setFaceVerificationStatus}
+              onOpenFaceModal={() => {
+                setFaceVerificationStatus("pending");
+                setFaceModalAutoStart(true);
+                setIsFaceModalOpen(true);
+              }}
+            />
+          )}
+          {step === 5 && (
+            <Step5Verify
+              fullName={fullName}
+              role={displayRole}
+              formData={data}
+              faceVerificationStatus={faceVerificationStatus}
+              onRetry={onRetryVerification}
+            />
+          )}
         </div>
       </main>
 
@@ -702,6 +914,21 @@ export default function OnboardPage() {
           </button>
         )}
       </div>
+
+      {/* Face Verification Modal */}
+      <FaceVerificationModal
+        isOpen={isFaceModalOpen}
+        autoStart={faceModalAutoStart}
+        onClose={closeFaceModal}
+        onSuccess={() => {
+          setFaceVerificationStatus("success");
+          closeFaceModal();
+        }}
+        onError={(error) => {
+          console.error("Face verification error:", error);
+          setFaceVerificationStatus("failed");
+        }}
+      />
     </div>
   );
 }

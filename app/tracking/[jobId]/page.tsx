@@ -419,7 +419,7 @@ export default function TrackingPage() {
               </div>
             )}
             {status === "no_response" && (
-              <span className={`${styles.statusLabel} ${styles.statusWarn}`}>Worker didn't respond</span>
+              <span className={`${styles.statusLabel} ${styles.statusWarn}`}>Worker didn&apos;t respond</span>
             )}
           </div>
         </div>
