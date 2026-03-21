@@ -130,7 +130,7 @@ export default function AuthPage() {
         return;
       } else {
         // Sign in existing user
-        const { data: authData, error: authError } =
+        const { error: authError } =
           await supabase.auth.signInWithPassword({
             email: form.email,
             password: form.password,
@@ -145,9 +145,10 @@ export default function AuthPage() {
         await new Promise((r) => setTimeout(r, 700));
         router.push("/");
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Auth error:", error);
-      setErrors({ email: error.message || "Authentication failed" });
+      const message = error instanceof Error ? error.message : "Authentication failed";
+      setErrors({ email: message });
     } finally {
       setLoading(false);
     }
