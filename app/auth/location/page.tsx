@@ -55,6 +55,7 @@ function LocationForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [gettingLocation, setGettingLocation] = useState(false);
 
   const fetchPSGCResource = async (
     level: string,
@@ -65,7 +66,10 @@ function LocationForm() {
 
     try {
       const res = await fetch(`/api/psgc?${params.toString()}`);
-      if (!res.ok) return [];
+      if (!res.ok) {
+        console.error(`PSGC API error (${level}):`, res.status, await res.text());
+        return [];
+      }
       const data = await res.json();
       const list = Array.isArray(data)
         ? data
@@ -343,6 +347,77 @@ function LocationForm() {
     }));
   };
 
+  const getUserLocation = () => {
+    if (!navigator.geolocation) {
+      setErrors({ general: "Geolocation is not supported by your browser" });
+      return;
+    }
+
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        setMapCoords({ lat, lon });
+        setForm((f) => ({
+          ...f,
+          latitude: lat.toString(),
+          longitude: lon.toString(),
+        }));
+
+        // Reverse geocode to get address
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`,
+            { headers: { "Accept-Language": "en" } },
+          );
+          const data = await res.json();
+          const addr = data.address || {};
+
+          // Try to match PSGC items if we get location data
+          if (addr.province) {
+            const prov = provinces.find((p) =>
+              p.name.toLowerCase().includes(addr.province.toLowerCase()),
+            );
+            if (prov) {
+              set("province", prov.name);
+              set("provinceCode", prov.code);
+            }
+          }
+          if (addr.city || addr.town || addr.municipality) {
+            const cityName = (addr.city || addr.town || addr.municipality || "").toLowerCase();
+            const mun = municipalities.find((m) =>
+              m.name.toLowerCase().includes(cityName),
+            );
+            if (mun) {
+              set("city", mun.name);
+              set("cityCode", mun.code);
+            }
+          }
+          if (addr.barangay) {
+            const brgy = barangays.find((b) =>
+              b.name.toLowerCase().includes(addr.barangay.toLowerCase()),
+            );
+            if (brgy) {
+              set("barangay", brgy.name);
+              set("barangayCode", brgy.code);
+            }
+          }
+        } catch (err) {
+          console.warn("Reverse geocoding failed:", err);
+        }
+
+        setGettingLocation(false);
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        setGettingLocation(false);
+        setErrors({ general: "Unable to get your location. Please enter manually." });
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
+    );
+  };
+
   const address = [
     form.street,
     form.barangay,
@@ -365,8 +440,15 @@ function LocationForm() {
       signal: controller.signal,
       headers: { "Accept-Language": "en" },
     })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          console.warn("Geocoding failed:", res.status);
+          return null;
+        }
+        return res.json();
+      })
       .then((items) => {
+        if (!items) return;
         if (Array.isArray(items) && items.length > 0) {
           const item = items[0];
           const lat = Number(item.lat);
@@ -381,7 +463,11 @@ function LocationForm() {
           }
         }
       })
-      .catch(() => null);
+      .catch((err) => {
+        if (err.name !== "AbortError") {
+          console.warn("Geocoding error:", err);
+        }
+      });
 
     return () => controller.abort();
   }, [address]);
@@ -560,6 +646,25 @@ function LocationForm() {
           {/* Map location */}
           <div className={styles.field}>
             <label className={styles.label}>Pin Location</label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+              <button
+                type="button"
+                className={styles.locationBtn}
+                onClick={getUserLocation}
+                disabled={gettingLocation}
+                style={{
+                  padding: "8px 12px",
+                  fontSize: 13,
+                  background: gettingLocation ? "#ccc" : "#007AFF",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                  cursor: gettingLocation ? "not-allowed" : "pointer",
+                }}
+              >
+                {gettingLocation ? "Getting location..." : "Use my current location"}
+              </button>
+            </div>
             <div style={{ minHeight: 240 }}>
               <LeafletPinMap
                 current={mapCoords}

@@ -83,6 +83,20 @@ export default function LandingPage() {
   const [isLocating, setIsLocating] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
 
+  // Load cached location on mount
+  useEffect(() => {
+    const cached = localStorage.getItem("beavr_location");
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        setLocation(parsed);
+        setIsLocating(false);
+      } catch (e) {
+        console.warn("Failed to parse cached location:", e);
+      }
+    }
+  }, []);
+
   // Check auth status on mount
   useEffect(() => {
     const checkAuth = async () => {
@@ -119,41 +133,71 @@ export default function LandingPage() {
 
   // Auto-detect location on mount
   useEffect(() => {
+    // If we already have cached location, skip auto-detection
+    const cached = localStorage.getItem("beavr_location");
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.latitude && parsed.longitude) {
+          setIsLocating(false);
+          return;
+        }
+      } catch (e) {
+        // Ignore parse errors, proceed with geolocation
+      }
+    }
+
     if (!navigator.geolocation) {
       setLocationError("Geolocation is not supported by your browser");
       setIsLocating(false);
       return;
     }
 
+    const controller = new AbortController();
+
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-        
+
         // Reverse geocode to get address
         try {
           const response = await fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-            { headers: { "Accept-Language": "en" } }
+            {
+              headers: { "Accept-Language": "en" },
+              signal: controller.signal,
+            },
           );
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
           const data = await response.json();
-          
+
           const locationData = {
             latitude,
             longitude,
-            address: data.address?.barangay || data.address?.suburb || data.address?.city || "Your location",
-            province: data.address?.state || data.address?.province || "Cavite",
+            address:
+              data.address?.barangay ||
+              data.address?.suburb ||
+              data.address?.city ||
+              "Your location",
+            province:
+              data.address?.state || data.address?.province || "Cavite",
             city: data.address?.city || data.address?.municipality || "",
             barangay: data.address?.barangay || "",
           };
-          
+
           setLocation(locationData);
-          
+
           // Save to localStorage for onboarding page
           localStorage.setItem("beavr_location", JSON.stringify(locationData));
         } catch (error) {
+          if (error instanceof Error && error.name === "AbortError") {
+            return;
+          }
           console.error("Reverse geocoding error:", error);
+          // Still save coordinates even if reverse geocoding fails
           const locationData = {
             latitude,
             longitude,
@@ -176,8 +220,10 @@ export default function LandingPage() {
         enableHighAccuracy: true,
         timeout: 10000,
         maximumAge: 300000, // 5 minutes
-      }
+      },
     );
+
+    return () => controller.abort();
   }, []);
 
   // Check auth before finding specialist
@@ -329,31 +375,70 @@ export default function LandingPage() {
     }
 
     setIsLocating(true);
+    const controller = new AbortController();
+    setLocationError(null);
+
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-        
+
         try {
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+            {
+              headers: { "Accept-Language": "en" },
+              signal: controller.signal,
+            },
           );
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
           const data = await response.json();
-          
-          setLocation({
+
+          const locationData = {
             latitude,
             longitude,
-            address: data.address?.barangay || data.address?.suburb || data.address?.city || "Your location",
-          });
+            address:
+              data.address?.barangay ||
+              data.address?.suburb ||
+              data.address?.city ||
+              "Your location",
+            province:
+              data.address?.state || data.address?.province || "Cavite",
+            city: data.address?.city || data.address?.municipality || "",
+            barangay: data.address?.barangay || "",
+          };
+
+          setLocation(locationData);
+          localStorage.setItem("beavr_location", JSON.stringify(locationData));
         } catch (error) {
-          setLocation({ latitude, longitude, address: "Current location" });
+          if (error instanceof Error && error.name === "AbortError") {
+            return;
+          }
+          console.error("Reverse geocoding error:", error);
+          // Still save coordinates even if reverse geocoding fails
+          const locationData = {
+            latitude,
+            longitude,
+            address: "Current location",
+            province: "",
+            city: "",
+            barangay: "",
+          };
+          setLocation(locationData);
+          localStorage.setItem("beavr_location", JSON.stringify(locationData));
         }
         setIsLocating(false);
       },
       (error) => {
+        console.error("Geolocation error:", error);
         setLocationError("Unable to get your location");
         setIsLocating(false);
-      }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
     );
+
+    return () => controller.abort();
   };
 
   /* ---------------------------------------------------------------- */

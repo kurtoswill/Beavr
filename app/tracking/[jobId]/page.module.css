@@ -35,6 +35,20 @@
   overflow: hidden;
 }
 
+.mapLoading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: var(--text-sm-size);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
 .mapBg {
   position: absolute;
   inset: 0;
@@ -43,142 +57,31 @@
     radial-gradient(ellipse 80% 60% at 75% 75%, #1e3a10 0%, #0f1e09 80%);
 }
 
-.mapRoads,
-.routeSvg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+/* Leaflet map container overrides */
+.mapLayer .leaflet-container {
+  background: #1c2b1a;
 }
 
-.mapLabel {
-  position: absolute;
-  font-size: 11px;
-  font-weight: 600;
-  font-family: var(--font-family);
-  color: rgba(255, 255, 255, 0.5);
-  pointer-events: none;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
-  white-space: pre-line;
-  line-height: 1.3;
-}
-
-.mapLabelRoad {
-  position: absolute;
-  font-size: 10px;
-  font-weight: 700;
-  font-family: var(--font-family);
-  color: rgba(255, 255, 255, 0.4);
-  background: rgba(0, 0, 0, 0.3);
-  padding: 1px 5px;
-  border-radius: 3px;
-  pointer-events: none;
-}
-
-/* ---- You pin ---- */
-.pinYou {
-  position: absolute;
-  top: 22%;
-  left: 52%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.pinYouDot {
-  width: 18px;
-  height: 18px;
-  border-radius: var(--radius-full);
-  background: var(--color-brand);
-  border: 3px solid #fff;
-  box-shadow: 0 2px 8px rgba(51, 125, 249, 0.6);
-  position: relative;
-  z-index: 2;
-}
-
-.pinYouRing {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translate(-50%, 0);
-  width: 42px;
-  height: 42px;
-  border-radius: var(--radius-full);
-  background: rgba(51, 125, 249, 0.2);
-  animation: ripple 2.2s ease-out infinite;
-  z-index: 1;
-}
-
-@keyframes ripple {
-  0%   { transform: translate(-50%, 0) scale(0.5); opacity: 0.9; }
-  100% { transform: translate(-50%, 0) scale(1.9); opacity: 0; }
-}
-
-.pinYouLabel {
-  font-size: var(--text-xs-size);
-  font-weight: 700;
-  font-family: var(--font-family);
-  color: #fff;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
-}
-
-/* ---- Worker pin ---- */
-.pinWorker {
-  position: absolute;
-  bottom: 28%;
-  left: 53%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  transition: bottom var(--duration-slower) var(--ease-out);
-}
-
-.pinWorkerMoving {
-  animation: workerBounce 1.8s var(--ease-inout) infinite;
-  bottom: 44%;
-}
-
-@keyframes workerBounce {
-  0%, 100% { transform: translateX(-50%) translateY(0); }
-  50%       { transform: translateX(-50%) translateY(-7px); }
-}
-
-.pinWorkerAvatar {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-full);
-  border: 3px solid #fff;
-  object-fit: cover;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
-}
-
-.pinWorkerEta {
-  background: #fff;
-  color: var(--color-ink);
-  font-size: var(--text-xs-size);
-  font-weight: 700;
-  font-family: var(--font-family);
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-full);
-  box-shadow: var(--shadow-sm);
-  white-space: nowrap;
+/* Pulse animation for markers */
+@keyframes pulse {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
 }
 
 /* ================================================================
    Layer 2 — Draggable worker profile sheet
-   JS sets `top` directly; border-radius is also managed by JS
    ================================================================ */
 .sheet {
   position: absolute;
   left: 0;
   right: 0;
-  /* bottom extends past viewport so content doesn't peek under sticky bar */
   bottom: -20px;
-  /* top set by JS on mount */
   top: 100%;
   z-index: 10;
   background: var(--color-surface);
@@ -187,7 +90,6 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* transition applied by JS on pointer-up */
   will-change: top, border-radius;
 }
 
@@ -212,7 +114,7 @@
   border-radius: var(--radius-full);
 }
 
-/* ---- Peek zone: always visible, identity row only ---- */
+/* ---- Peek zone: always visible ---- */
 .peekZone {
   flex-shrink: 0;
   padding: var(--space-1) var(--space-5) var(--space-1);
@@ -309,7 +211,30 @@
 .roleText {
   font-size: var(--text-sm-med-size);
   font-weight: var(--text-sm-med-weight);
+  color: var(--color-text-secondary);
+}
+
+/* Star rating row */
+.starRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.starIcon {
+  color: #FBBF24;
+  flex-shrink: 0;
+}
+
+.ratingText {
+  font-size: var(--text-sm-size);
+  font-weight: 600;
   color: var(--color-text-primary);
+}
+
+.reviewsCount {
+  font-size: var(--text-xs-size);
+  color: var(--color-text-secondary);
 }
 
 /* Distance + location row */
@@ -671,6 +596,124 @@
   border-color: var(--color-brand);
   background: var(--color-brand-20);
   color: var(--color-brand);
+}
+
+/* ================================================================
+   Error State
+   ================================================================ */
+.errorState {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  padding: var(--space-8);
+  max-width: 320px;
+}
+
+.errorState h2 {
+  font-size: var(--text-h2-size);
+  font-weight: var(--text-h2-weight);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.errorState p {
+  font-size: var(--text-sm-size);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-5);
+}
+
+.homeBtn {
+  height: 44px;
+  padding: 0 var(--space-5);
+  background: var(--color-brand);
+  border: none;
+  border-radius: var(--radius-full);
+  color: #fff;
+  font-family: var(--font-family);
+  font-size: var(--text-sm-med-size);
+  font-weight: var(--text-sm-med-weight);
+  cursor: pointer;
+  box-shadow: var(--shadow-brand);
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.homeBtn:hover {
+  background: #1f6be8;
+}
+
+/* ================================================================
+   Review Cards
+   ================================================================ */
+.reviewCard {
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.reviewHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.reviewAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  object-fit: cover;
+  border: 2px solid var(--color-border);
+}
+
+.reviewInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.reviewName {
+  display: block;
+  font-size: var(--text-sm-med-size);
+  font-weight: var(--text-sm-med-weight);
+  color: var(--color-text-primary);
+  margin-bottom: 4px;
+}
+
+.reviewRating {
+  display: flex;
+  gap: 2px;
+}
+
+.starFilled {
+  color: #FBBF24;
+}
+
+.starEmpty {
+  color: #D1D5DB;
+}
+
+.reviewText {
+  font-size: var(--text-sm-size);
+  line-height: var(--text-sm-lh);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-3);
+}
+
+.reviewImages {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.reviewImage {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  border: 1px solid var(--color-border);
 }
 
 /* ================================================================
