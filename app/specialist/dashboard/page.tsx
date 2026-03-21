@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
 import {
   Zap,
   Wallet,
@@ -16,6 +17,13 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import styles from "./page.module.css";
+
+/* ------------------------------------------------------------------ */
+/*  Supabase Client                                                     */
+/* ------------------------------------------------------------------ */
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 /* ------------------------------------------------------------------ */
 /*  Types - From Database Schema                                        */
@@ -76,6 +84,7 @@ interface Profile {
   avatar_url?: string;
   email?: string;
   phone?: string;
+  role?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -150,14 +159,29 @@ interface ProfilesResponse {
 /* ------------------------------------------------------------------ */
 /*  Helper: Map job from API to JobOffer format                        */
 /* ------------------------------------------------------------------ */
-function mapJobToOffer(
-  job: Job,
-  customerName?: string,
-  customerAvatar?: string
-): JobOffer {
+async function mapJobToOffer(job: Job): Promise<JobOffer> {
+  // Fetch customer profile
+  let customerName = "Customer";
+  let customerAvatar = "https://i.pravatar.cc/80?img=5";
+
+  try {
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("full_name, avatar_url")
+      .eq("id", job.customer_id)
+      .single();
+
+    if (profileData) {
+      customerName = profileData.full_name || "Customer";
+      customerAvatar = profileData.avatar_url || customerAvatar;
+    }
+  } catch (error) {
+    console.warn("Could not fetch customer profile:", error);
+  }
+
   return {
     id: job.id,
-    clientName: customerName || "Customer",
+    clientName: customerName,
     clientAvatar: customerAvatar || "https://i.pravatar.cc/80?img=5",
     date: new Date(job.created_at).toLocaleDateString("en-US", {
       month: "long",
@@ -235,17 +259,27 @@ function JobOfferModal({
         aria-modal="true"
         aria-label="Job offer details"
       >
-        <button className={styles.modalClose} onClick={onClose} aria-label="Close">
+        <button
+          className={styles.modalClose}
+          onClick={onClose}
+          aria-label="Close"
+        >
           <X size={18} strokeWidth={2.5} />
         </button>
         <div className={styles.modalHandle} aria-hidden />
         <div className={styles.modalClient}>
-          <img src={offer.clientAvatar} alt={offer.clientName} className={styles.modalClientAvatar} />
+          <img
+            src={offer.clientAvatar}
+            alt={offer.clientName}
+            className={styles.modalClientAvatar}
+          />
           <div className={styles.modalClientInfo}>
             <span className={styles.modalClientName}>{offer.clientName}</span>
             <div className={styles.modalClientMeta}>
               <CalendarDays size={11} strokeWidth={2} />
-              <span>{offer.date} · {offer.time}</span>
+              <span>
+                {offer.date} · {offer.time}
+              </span>
             </div>
           </div>
           <div className={styles.serviceChip}>
@@ -256,10 +290,16 @@ function JobOfferModal({
         <div className={styles.modalDivider} />
         <div className={styles.modalDetails}>
           <div className={styles.modalDetailRow}>
-            <Navigation size={14} strokeWidth={2} className={styles.modalDetailIcon} />
+            <Navigation
+              size={14}
+              strokeWidth={2}
+              className={styles.modalDetailIcon}
+            />
             <div>
               <span className={styles.modalDetailLabel}>Distance</span>
-              <span className={styles.modalDetailValue}>{offer.distance} · {offer.eta} away</span>
+              <span className={styles.modalDetailValue}>
+                {offer.distance} · {offer.eta} away
+              </span>
             </div>
           </div>
         </div>
@@ -271,7 +311,12 @@ function JobOfferModal({
         {offer.images && offer.images.length > 0 && (
           <div className={styles.modalImages}>
             {offer.images.map((src: string, i: number) => (
-              <img key={i} src={src} alt={`Photo ${i + 1}`} className={styles.modalImage} />
+              <img
+                key={i}
+                src={src}
+                alt={`Photo ${i + 1}`}
+                className={styles.modalImage}
+              />
             ))}
           </div>
         )}
@@ -279,7 +324,8 @@ function JobOfferModal({
         <div className={styles.modalSection}>
           <span className={styles.modalSectionTitle}>Your rate</span>
           <p className={styles.modalRateHint}>
-            Suggested: ₱{offer.suggestedRate.toLocaleString()}. Set your own price for this job.
+            Suggested: ₱{offer.suggestedRate.toLocaleString()}. Set your own
+            price for this job.
           </p>
           <div className={styles.rateInputWrap}>
             <span className={styles.ratePrefix}>₱</span>
@@ -294,8 +340,12 @@ function JobOfferModal({
           </div>
         </div>
         <div className={styles.modalActions}>
-          <button className={styles.rejectBtn} onClick={onReject}>Reject</button>
-          <button className={styles.acceptBtn} onClick={handleAccept}>Accept job</button>
+          <button className={styles.rejectBtn} onClick={onReject}>
+            Reject
+          </button>
+          <button className={styles.acceptBtn} onClick={handleAccept}>
+            Accept job
+          </button>
         </div>
       </div>
     </div>
@@ -309,12 +359,22 @@ function OfferCard({ offer, onView }: { offer: JobOffer; onView: () => void }) {
   return (
     <div className={styles.offerCard}>
       <div className={styles.offerHeader}>
-        <img src={offer.clientAvatar} alt={offer.clientName} className={styles.jobAvatar} />
+        <img
+          src={offer.clientAvatar}
+          alt={offer.clientName}
+          className={styles.jobAvatar}
+        />
         <div className={styles.jobMeta}>
           <span className={styles.jobClientName}>{offer.clientName}</span>
           <div className={styles.jobSubRow}>
-            <CalendarDays size={11} strokeWidth={2} className={styles.jobSubIcon} />
-            <span className={styles.jobDate}>{offer.date} · {offer.time}</span>
+            <CalendarDays
+              size={11}
+              strokeWidth={2}
+              className={styles.jobSubIcon}
+            />
+            <span className={styles.jobDate}>
+              {offer.date} · {offer.time}
+            </span>
           </div>
         </div>
         <span className={styles.badgeNew}>New</span>
@@ -326,14 +386,19 @@ function OfferCard({ offer, onView }: { offer: JobOffer; onView: () => void }) {
         </div>
         <div className={styles.distanceChip}>
           <Navigation size={11} strokeWidth={2} />
-          <span>{offer.distance} · {offer.eta}</span>
+          <span>
+            {offer.distance} · {offer.eta}
+          </span>
         </div>
       </div>
       <p className={styles.jobDesc}>{offer.description}</p>
       {offer.images && (
         <div className={styles.offerImageHint}>
           <ImageIcon size={12} strokeWidth={2} />
-          <span>{offer.images.length} photo{offer.images.length > 1 ? "s" : ""} attached</span>
+          <span>
+            {offer.images.length} photo{offer.images.length > 1 ? "s" : ""}{" "}
+            attached
+          </span>
         </div>
       )}
       <div className={styles.jobFooter}>
@@ -351,16 +416,26 @@ function OfferCard({ offer, onView }: { offer: JobOffer; onView: () => void }) {
 function CompletedCard({ job }: { job: CompletedJob }) {
   return (
     <div className={styles.completedCard}>
-      <img src={job.clientAvatar} alt={job.clientName} className={styles.jobAvatar} />
+      <img
+        src={job.clientAvatar}
+        alt={job.clientName}
+        className={styles.jobAvatar}
+      />
       <div className={styles.jobMeta}>
         <span className={styles.jobClientName}>{job.clientName}</span>
         <div className={styles.jobSubRow}>
-          <CalendarDays size={11} strokeWidth={2} className={styles.jobSubIcon} />
+          <CalendarDays
+            size={11}
+            strokeWidth={2}
+            className={styles.jobSubIcon}
+          />
           <span className={styles.jobDate}>{job.date}</span>
         </div>
       </div>
       <div className={styles.completedRight}>
-        <span className={styles.completedAmount}>₱{job.amount.toLocaleString()}</span>
+        <span className={styles.completedAmount}>
+          ₱{job.amount.toLocaleString()}
+        </span>
         <span className={styles.badgeCompleted}>Done</span>
       </div>
     </div>
@@ -372,11 +447,16 @@ function CompletedCard({ job }: { job: CompletedJob }) {
 /* ================================================================== */
 export default function SpecialistDashboard() {
   const router = useRouter();
-  
+
+  // Auth state
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
   // State for specialist profile (fetched from API)
   const [specialist, setSpecialist] = useState<SpecialistProfile | null>(null);
   const [isLoadingSpecialist, setIsLoadingSpecialist] = useState(true);
-  
+  const [authError, setAuthError] = useState<string | null>(null);
+
   // UI state
   const [autoAccept, setAutoAccept] = useState(true);
   const [online, setOnline] = useState(true);
@@ -385,28 +465,87 @@ export default function SpecialistDashboard() {
   const [completedJobs, setCompletedJobs] = useState<CompletedJob[]>([]);
   const [selectedOffer, setSelectedOffer] = useState<JobOffer | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // Dynamic earnings state
   const [thisWeek, setThisWeek] = useState(0);
   const [pending, setPending] = useState(0);
 
-  // Fetch specialist profile from API
+  // Check authentication on mount
   useEffect(() => {
-    const fetchSpecialist = async () => {
+    const checkAuth = async () => {
       try {
-        // Get first available specialist (replace with auth later)
-        const res = await fetch('/api/specialists?limit=1');
-        const data: SpecialistResponse = await res.json();
-        
-        if (data.success && data.specialists && data.specialists.length > 0) {
-          const spec = data.specialists[0];
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+
+        if (authError) {
+          console.error("Auth error:", authError);
+          setAuthError("Not authenticated");
+          setIsLoadingSpecialist(false);
+          setTimeout(() => router.push("/auth"), 100);
+          return;
+        }
+
+        if (user) {
+          setUserId(user.id);
+          setIsAuthenticated(true);
+
+          // Fetch specialist profile for this user
+          const { data: specialistData, error: specialistError } =
+            await supabase
+              .from("specialists")
+              .select(
+                `
+              *,
+              profiles:user_id (
+                id,
+                full_name,
+                avatar_url,
+                email,
+                phone,
+                role
+              )
+            `,
+              )
+              .eq("user_id", user.id)
+              .limit(1);
+
+          if (specialistError) {
+            console.error("Error fetching specialist:", specialistError);
+            // No specialist profile found - redirect to home page (not onboarding)
+            // Onboarding is only for users who explicitly choose to become specialists
+            console.log(
+              "No specialist profile found, redirecting to home page",
+            );
+            setAuthError("No specialist profile found");
+            setIsLoadingSpecialist(false);
+            setTimeout(() => router.push("/"), 100);
+            return;
+          }
+
+          const specialist = specialistData?.[0];
+
+          if (!specialist) {
+            console.warn("No specialist profile found for user");
+            setAuthError("No specialist profile found");
+            setIsLoadingSpecialist(false);
+            setTimeout(() => router.push("/"), 100);
+            return;
+          }
+
           setSpecialist({
-            id: spec.id,
-            name: spec.profiles?.full_name || 'Specialist',
-            avatar: spec.profiles?.avatar_url || 'https://i.pravatar.cc/80?img=5',
-            role: spec.profession || 'General',
-            rating: spec.rating_avg || 4.5,
-            reviews: spec.jobs_completed || 0,
+            id: specialist.id,
+            name:
+              specialist.profiles?.full_name ||
+              user.email?.split("@")[0] ||
+              "Specialist",
+            avatar:
+              specialist.profiles?.avatar_url ||
+              "https://i.pravatar.cc/80?img=5",
+            role: specialist.profession || "General",
+            rating: specialist.rating_avg || 4.5,
+            reviews: specialist.jobs_completed || 0,
             completionRate: 100,
             totalEarned: 0,
             thisWeek: 0,
@@ -414,19 +553,26 @@ export default function SpecialistDashboard() {
             responseRate: 100,
           });
         } else {
-          console.warn('No specialists found, using fallback');
-          setSpecialist(null);
+          // Not authenticated, redirect to auth
+          console.log("No user found, redirecting to auth");
+          setAuthError("Not authenticated");
+          setIsLoadingSpecialist(false);
+          setTimeout(() => router.push("/auth"), 100);
+          return;
         }
       } catch (error) {
-        console.error('Failed to fetch specialist:', error);
-        setSpecialist(null);
-      } finally {
+        console.error("Auth check error:", error);
+        setAuthError("Authentication error");
         setIsLoadingSpecialist(false);
+        setTimeout(() => router.push("/auth"), 100);
+        return;
       }
+
+      setIsLoadingSpecialist(false);
     };
-    
-    fetchSpecialist();
-  }, []);
+
+    checkAuth();
+  }, [router]);
 
   // Fetch pending jobs
   useEffect(() => {
@@ -435,9 +581,11 @@ export default function SpecialistDashboard() {
         setIsLoading(true);
         const res = await fetch("/api/jobs?status=pending");
         const data: JobsResponse = await res.json();
-        
+
         if (data.success && data.jobs) {
-          const mappedOffers = data.jobs.map((job: Job) => mapJobToOffer(job));
+          const mappedOffers = await Promise.all(
+            data.jobs.map((job: Job) => mapJobToOffer(job)),
+          );
           setOffers(mappedOffers);
         }
       } catch (error) {
@@ -446,98 +594,176 @@ export default function SpecialistDashboard() {
         setIsLoading(false);
       }
     };
-    
-    fetchJobs();
-  }, []);
+
+    if (isAuthenticated) {
+      fetchJobs();
+    }
+  }, [isAuthenticated]);
 
   // Fetch completed jobs and calculate earnings
   useEffect(() => {
     const fetchCompleted = async () => {
       if (!specialist?.id) return;
-      
+
       try {
-        const res = await fetch("/api/jobs?status=completed");
-        const data: JobsResponse = await res.json();
-        
-        if (data.success && data.jobs) {
-          // Filter jobs for this specialist
-          const specialistJobs = data.jobs.filter(
-            (job: Job) => job.specialist_id === specialist.id || job.worker_id === specialist.id
-          );
-          
-          const completed = await Promise.all(
-            specialistJobs.map(async (job: Job) => {
-              // Get the quote/proposed rate for this job
-              const quoteRes = await fetch(`/api/quotes?job_id=${job.id}`);
-              const quoteData: QuotesResponse = await quoteRes.json();
-              const rate = quoteData.quotes?.[0]?.proposed_rate || 500;
-              
-              // TODO: Fetch customer profile for name/avatar
-              return {
-                id: job.id,
-                clientName: "Customer",
-                clientAvatar: "https://i.pravatar.cc/80?img=5",
-                date: new Date(job.completed_at || job.created_at).toLocaleDateString("en-US", {
-                  month: "long",
-                  day: "numeric",
-                  year: "numeric",
-                }),
-                service: job.profession,
-                amount: rate,
-              };
-            })
-          );
-          
-          setCompletedJobs(completed);
-          
-          // Calculate total earnings from completed jobs
-          const total = completed.reduce((sum: number, job: CompletedJob) => sum + job.amount, 0);
-          setThisWeek(total);
+        // Get quotes for this specialist
+        const { data: quotesData, error: quotesError } = await supabase
+          .from("quotes")
+          .select("job_id, proposed_rate, status")
+          .eq("worker_id", specialist.id);
+
+        if (quotesError) {
+          console.error("Error fetching quotes:", quotesError);
+          return;
+        }
+
+        if (!quotesData || quotesData.length === 0) {
+          return;
+        }
+
+        // Get job IDs from quotes
+        const jobIds = quotesData.map((q) => q.job_id);
+
+        // Fetch completed jobs with accepted quotes
+        const { data: jobsData, error: jobsError } = await supabase
+          .from("jobs")
+          .select("*")
+          .in("id", jobIds)
+          .eq("status", "completed");
+
+        if (jobsError) {
+          console.error("Error fetching jobs:", jobsError);
+          return;
+        }
+
+        if (!jobsData || jobsData.length === 0) {
+          return;
+        }
+
+        // Map jobs with quote rates and customer info
+        const completed = await Promise.all(
+          jobsData.map(async (job: Job) => {
+            // Find the quote for this job
+            const quote = quotesData.find((q) => q.job_id === job.id);
+            const rate = quote?.proposed_rate || 500;
+
+            // Fetch customer profile
+            let customerName = "Customer";
+            let customerAvatar = "https://i.pravatar.cc/80?img=5";
+
+            try {
+              const { data: profileData } = await supabase
+                .from("profiles")
+                .select("full_name, avatar_url")
+                .eq("id", job.customer_id)
+                .single();
+
+              if (profileData) {
+                customerName = profileData.full_name || "Customer";
+                customerAvatar = profileData.avatar_url || customerAvatar;
+              }
+            } catch (error) {
+              console.warn("Could not fetch customer profile:", error);
+            }
+
+            return {
+              id: job.id,
+              clientName: customerName,
+              clientAvatar: customerAvatar,
+              date: new Date(
+                job.completed_at || job.created_at,
+              ).toLocaleDateString("en-US", {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              }),
+              service: job.profession,
+              amount: rate,
+            };
+          }),
+        );
+
+        setCompletedJobs(completed);
+
+        // Calculate total earnings from completed jobs
+        const total = completed.reduce(
+          (sum: number, job: CompletedJob) => sum + job.amount,
+          0,
+        );
+        setThisWeek(total);
+
+        // Calculate pending earnings from accepted but not completed jobs
+        const { data: pendingJobsData } = await supabase
+          .from("jobs")
+          .select("*")
+          .in("id", jobIds)
+          .eq("status", "bid_accepted");
+
+        if (pendingJobsData) {
+          const pendingTotal = pendingJobsData.reduce((sum, job) => {
+            const quote = quotesData.find((q) => q.job_id === job.id);
+            return sum + (quote?.proposed_rate || 0);
+          }, 0);
+          setPending(pendingTotal);
         }
       } catch (error) {
         console.error("Failed to fetch completed jobs:", error);
       }
     };
-    
-    fetchCompleted();
+
+    if (specialist?.id) {
+      fetchCompleted();
+    }
   }, [specialist?.id]);
 
   const handleAccept = async (rate: number) => {
     if (!selectedOffer || !specialist?.id) return;
-    
+
     try {
-      const quoteRes = await fetch("/api/quotes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // Create quote
+      const { data: quoteData, error: quoteError } = await supabase
+        .from("quotes")
+        .insert({
           job_id: selectedOffer.id,
           worker_id: specialist.id,
           proposed_rate: rate,
           estimated_arrival: 30,
-        }),
-      });
-      
-      const quoteData: QuotesResponse = await quoteRes.json();
-      
-      if (quoteData.success) {
-        const jobRes = await fetch(`/api/jobs/${selectedOffer.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            status: "bid_accepted",
-            specialist_id: specialist.id,
-          }),
-        });
-        
-        const jobData = await jobRes.json();
-        
-        if (jobData.success) {
-          setPending((prev) => prev + rate);
-          setOffers((prev) => prev.filter((o) => o.id !== selectedOffer.id));
-          setSelectedOffer(null);
-          router.push(`/specialist/job/${selectedOffer.id}`);
-        }
+          status: "sent",
+        })
+        .select()
+        .single();
+
+      if (quoteError) {
+        console.error("Error creating quote:", quoteError);
+        alert("Failed to accept job. Please try again.");
+        return;
       }
+
+      // Update job status
+      const { error: jobError } = await supabase
+        .from("jobs")
+        .update({
+          status: "bid_accepted",
+          specialist_id: specialist.id,
+          accepted_at: new Date().toISOString(),
+        })
+        .eq("id", selectedOffer.id);
+
+      if (jobError) {
+        console.error("Error updating job:", jobError);
+        alert("Failed to accept job. Please try again.");
+        return;
+      }
+
+      // Update pending earnings
+      setPending((prev) => prev + rate);
+
+      // Remove from offers list
+      setOffers((prev) => prev.filter((o) => o.id !== selectedOffer.id));
+      setSelectedOffer(null);
+
+      // Navigate to job tracking
+      router.push(`/specialist/job/${selectedOffer.id}`);
     } catch (error) {
       console.error("Failed to accept job:", error);
       alert("Failed to accept job. Please try again.");
@@ -555,7 +781,7 @@ export default function SpecialistDashboard() {
   };
 
   // Show loading while fetching specialist
-  if (!specialist || isLoadingSpecialist) {
+  if (isLoadingSpecialist) {
     return (
       <div className={styles.page}>
         <div className={styles.emptyState}>
@@ -566,11 +792,43 @@ export default function SpecialistDashboard() {
     );
   }
 
+  // If no specialist after loading, show message (should redirect soon)
+  if (!specialist) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.emptyState}>
+          <Clock size={32} strokeWidth={1.5} className={styles.emptyIcon} />
+          <span className={styles.emptyText}>Redirecting...</span>
+        </div>
+      </div>
+    );
+  }
+
   const STATS = [
-    { label: "Completion", value: `${specialist.completionRate}%`, sub: "Rate", accent: "green" },
-    { label: "Rating", value: specialist.rating.toFixed(1), sub: `${specialist.reviews} reviews`, accent: "yellow" },
-    { label: "Earned", value: `₱${(thisWeek / 1000).toFixed(1)}k`, sub: "This week", accent: "brand" },
-    { label: "Response", value: `${specialist.responseRate}%`, sub: "Rate", accent: "blue" },
+    {
+      label: "Completion",
+      value: `${specialist.completionRate}%`,
+      sub: "Rate",
+      accent: "green",
+    },
+    {
+      label: "Rating",
+      value: specialist.rating.toFixed(1),
+      sub: `${specialist.reviews} reviews`,
+      accent: "yellow",
+    },
+    {
+      label: "Earned",
+      value: `₱${(thisWeek / 1000).toFixed(1)}k`,
+      sub: "This week",
+      accent: "brand",
+    },
+    {
+      label: "Response",
+      value: `${specialist.responseRate}%`,
+      sub: "Rate",
+      accent: "blue",
+    },
   ];
 
   return (
@@ -580,8 +838,14 @@ export default function SpecialistDashboard() {
         <div className={styles.heroGlow} aria-hidden />
         <div className={styles.heroTop}>
           <div className={styles.heroAvatarWrap}>
-            <img src={specialist.avatar} alt={specialist.name} className={styles.heroAvatar} />
-            <span className={`${styles.onlineDot} ${online ? styles.onlineDotActive : ""}`} />
+            <img
+              src={specialist.avatar}
+              alt={specialist.name}
+              className={styles.heroAvatar}
+            />
+            <span
+              className={`${styles.onlineDot} ${online ? styles.onlineDotActive : ""}`}
+            />
           </div>
           <div className={styles.heroIdentity}>
             <span className={styles.heroName}>{specialist.name}</span>
@@ -597,11 +861,17 @@ export default function SpecialistDashboard() {
         <div className={styles.earningsCard}>
           <div className={styles.earningsPrimary}>
             <span className={styles.earningsCurrency}>₱</span>
-            <span className={styles.earningsValue}>{thisWeek.toLocaleString()}</span>
+            <span className={styles.earningsValue}>
+              {thisWeek.toLocaleString()}
+            </span>
           </div>
           <span className={styles.earningsLabel}>This week</span>
           <div className={styles.earningsMeta}>
-            <TrendingUp size={12} strokeWidth={2} className={styles.earningsIcon} />
+            <TrendingUp
+              size={12}
+              strokeWidth={2}
+              className={styles.earningsIcon}
+            />
             <span>₱{pending.toLocaleString()} pending</span>
           </div>
         </div>
@@ -611,7 +881,10 @@ export default function SpecialistDashboard() {
       <main className={styles.content}>
         <div className={styles.statsGrid}>
           {STATS.map((s) => (
-            <div key={s.label} className={`${styles.statCard} ${styles[`stat_${s.accent}`]}`}>
+            <div
+              key={s.label}
+              className={`${styles.statCard} ${styles[`stat_${s.accent}`]}`}
+            >
               <span className={styles.statValue}>{s.value}</span>
               <span className={styles.statLabel}>{s.label}</span>
               <span className={styles.statSub}>{s.sub}</span>
@@ -623,17 +896,29 @@ export default function SpecialistDashboard() {
           <div className={styles.settingRow}>
             <div className={styles.settingLabel}>
               <span className={styles.settingTitle}>Auto accept</span>
-              <span className={styles.settingDesc}>Automatically accept nearby jobs</span>
+              <span className={styles.settingDesc}>
+                Automatically accept nearby jobs
+              </span>
             </div>
-            <Toggle on={autoAccept} onChange={() => setAutoAccept((v) => !v)} label="Toggle auto accept" />
+            <Toggle
+              on={autoAccept}
+              onChange={() => setAutoAccept((v) => !v)}
+              label="Toggle auto accept"
+            />
           </div>
           <div className={styles.settingDivider} />
           <div className={styles.settingRow}>
             <div className={styles.settingLabel}>
               <span className={styles.settingTitle}>Available</span>
-              <span className={styles.settingDesc}>You&apos;re visible to customers</span>
+              <span className={styles.settingDesc}>
+                You&apos;re visible to customers
+              </span>
             </div>
-            <Toggle on={online} onChange={() => setOnline((v) => !v)} label="Toggle availability" />
+            <Toggle
+              on={online}
+              onChange={() => setOnline((v) => !v)}
+              label="Toggle availability"
+            />
           </div>
           <div className={styles.settingDivider} />
           <button className={styles.walletRow}>
@@ -643,7 +928,11 @@ export default function SpecialistDashboard() {
                 <span className={styles.settingTitle}>Wallet</span>
               </div>
             </div>
-            <ArrowUpRight size={16} strokeWidth={2} className={styles.walletArrow} />
+            <ArrowUpRight
+              size={16}
+              strokeWidth={2}
+              className={styles.walletArrow}
+            />
           </button>
         </div>
 
@@ -655,34 +944,58 @@ export default function SpecialistDashboard() {
                 className={`${styles.jobTab} ${activeTab === "offers" ? styles.jobTabActive : ""}`}
                 onClick={() => setActiveTab("offers")}
               >
-                Offers {offers.length > 0 && <span className={styles.tabBadge}>{offers.length}</span>}
+                Offers{" "}
+                {offers.length > 0 && (
+                  <span className={styles.tabBadge}>{offers.length}</span>
+                )}
               </button>
               <button
                 className={`${styles.jobTab} ${activeTab === "completed" ? styles.jobTabActive : ""}`}
                 onClick={() => setActiveTab("completed")}
               >
-                Completed {completedJobs.length > 0 && <span className={styles.tabBadge}>{completedJobs.length}</span>}
+                Completed{" "}
+                {completedJobs.length > 0 && (
+                  <span className={styles.tabBadge}>
+                    {completedJobs.length}
+                  </span>
+                )}
               </button>
             </div>
           </div>
 
           <div className={styles.jobList}>
-            {activeTab === "offers" && (
-              isLoading ? (
+            {activeTab === "offers" &&
+              (isLoading ? (
                 <div className={styles.emptyState}>
-                  <Clock size={32} strokeWidth={1.5} className={styles.emptyIcon} />
+                  <Clock
+                    size={32}
+                    strokeWidth={1.5}
+                    className={styles.emptyIcon}
+                  />
                   <span className={styles.emptyText}>Loading jobs...</span>
                 </div>
               ) : offers.length === 0 ? (
                 <div className={styles.emptyState}>
-                  <CheckCircle2 size={32} strokeWidth={1.5} className={styles.emptyIcon} />
-                  <span className={styles.emptyText}>No new job offers right now</span>
+                  <CheckCircle2
+                    size={32}
+                    strokeWidth={1.5}
+                    className={styles.emptyIcon}
+                  />
+                  <span className={styles.emptyText}>
+                    No new job offers right now
+                  </span>
                 </div>
               ) : (
-                offers.map((o) => <OfferCard key={o.id} offer={o} onView={() => setSelectedOffer(o)} />)
-              )
-            )}
-            {activeTab === "completed" && completedJobs.map((c) => <CompletedCard key={c.id} job={c} />)}
+                offers.map((o) => (
+                  <OfferCard
+                    key={o.id}
+                    offer={o}
+                    onView={() => setSelectedOffer(o)}
+                  />
+                ))
+              ))}
+            {activeTab === "completed" &&
+              completedJobs.map((c) => <CompletedCard key={c.id} job={c} />)}
           </div>
         </section>
 

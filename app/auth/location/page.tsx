@@ -4,15 +4,25 @@ import { useState, useEffect, Suspense } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check, ArrowLeft } from "lucide-react";
+import { createClient } from "@supabase/supabase-js";
 import styles from "../page.module.css";
-import { completeSignup, signIn } from "../../actions/auth";
 
-interface PSGCItem { code: string; name: string; }
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+interface PSGCItem {
+  code: string;
+  name: string;
+}
 
 const REGION_DEFAULT = "CALABARZON (Region IV-A)";
 const REGION_CODE_DEFAULT = "040000000";
 
-const LeafletPinMap = dynamic(() => import("../../onboard/LeafletMap").then((mod) => mod.LeafletPinMap), { ssr: false });
+const LeafletPinMap = dynamic(
+  () => import("../../onboard/LeafletMap").then((mod) => mod.LeafletPinMap),
+  { ssr: false },
+);
 
 function LocationForm() {
   const router = useRouter();
@@ -22,7 +32,10 @@ function LocationForm() {
   const [municipalities, setMunicipalities] = useState<PSGCItem[]>([]);
   const [barangays, setBarangays] = useState<PSGCItem[]>([]);
 
-  const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number }>({ lat: 14.2819, lon: 120.9106 });
+  const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number }>({
+    lat: 14.2819,
+    lon: 120.9106,
+  });
 
   const [form, setForm] = useState({
     region: REGION_DEFAULT,
@@ -36,14 +49,17 @@ function LocationForm() {
     street: "",
     landmarks: "",
     latitude: "",
-    longitude: ""
+    longitude: "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
-  const fetchPSGCResource = async (level: string, code?: string): Promise<PSGCItem[]> => {
+  const fetchPSGCResource = async (
+    level: string,
+    code?: string,
+  ): Promise<PSGCItem[]> => {
     const params = new URLSearchParams({ level });
     if (code) params.set("code", code);
 
@@ -56,7 +72,10 @@ function LocationForm() {
         : Array.isArray(data?.value)
           ? data.value
           : [];
-      return list.map((item: { code: string; name: string }) => ({ code: item.code, name: item.name }));
+      return list.map((item: { code: string; name: string }) => ({
+        code: item.code,
+        name: item.name,
+      }));
     } catch (err) {
       console.error(`Failed to fetch ${level}:`, err);
       return [];
@@ -85,7 +104,10 @@ function LocationForm() {
     if (!form.provinceCode) return;
 
     (async () => {
-      const list = await fetchPSGCResource("cities-municipalities", form.provinceCode);
+      const list = await fetchPSGCResource(
+        "cities-municipalities",
+        form.provinceCode,
+      );
       setMunicipalities(list);
       setBarangays([]);
     })();
@@ -102,7 +124,11 @@ function LocationForm() {
 
   const set = (k: keyof typeof form, v: string) => {
     setForm((f) => ({ ...f, [k]: v }));
-    setErrors((e) => { const n = { ...e }; delete n[k]; return n; });
+    setErrors((e) => {
+      const n = { ...e };
+      delete n[k];
+      return n;
+    });
   };
 
   const validate = (): boolean => {
@@ -119,71 +145,154 @@ function LocationForm() {
   const handleSubmit = async () => {
     if (!validate()) return;
 
-    const pending = window.sessionStorage.getItem('beavr_signup_data');
+    const pending = window.sessionStorage.getItem("beavr_signup_data");
     if (!pending) {
-      setErrors({ general: 'Signup session lost. Please start again.' });
+      setErrors({ general: "Signup session lost. Please start again." });
       return;
     }
 
-    const pendingUser = JSON.parse(pending);
-    if (!pendingUser || !pendingUser.id) {
-      setErrors({ general: 'Incomplete signup data. Please start again.' });
+    let pendingUser: { email: string; password: string; full_name: string; role?: string };
+    try {
+      pendingUser = JSON.parse(pending);
+    } catch (parseError) {
+      console.error("Failed to parse signup data:", parseError);
+      setErrors({ general: "Invalid signup data. Please start again." });
+      return;
+    }
+
+    if (!pendingUser || !pendingUser.email || !pendingUser.password) {
+      setErrors({ general: "Incomplete signup data. Please start again." });
       return;
     }
 
     setLoading(true);
 
-    const formData = new FormData();
-    formData.append('userId', pendingUser.id);
-    formData.append('email', pendingUser.email);
-    formData.append('fullName', pendingUser.full_name);
-    formData.append('passwordHash', pendingUser.password_hash);
-    formData.append('role', pendingUser.role || 'customer');
-    formData.append('province', form.province);
-    formData.append('municipality', form.city);
-    formData.append('barangay', form.barangay);
-    formData.append('streetAddress', form.street);
-    formData.append('landmarks', form.landmarks);
-    if (form.latitude) formData.append('latitude', form.latitude);
-    if (form.longitude) formData.append('longitude', form.longitude);
-
-    const result = await completeSignup(formData);
-    
-    if (result?.error) {
-      setLoading(false);
-      console.error("Signup error:", result.error);
-      setErrors({ general: result.error });
-      return;
-    }
-
-    // Auto-login after successful signup
-    const signInData = new FormData();
-    signInData.append('email', pendingUser.email);
-    signInData.append('password', pendingUser.password);
-
     try {
-      const signInResult = await signIn(signInData);
-      
-      if (signInResult?.error) {
+      // STEP 1: Create auth user with the stored credentials
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: pendingUser.email,
+        password: pendingUser.password,
+        options: {
+          data: {
+            full_name: pendingUser.full_name,
+            role: pendingUser.role || "customer",
+          },
+        },
+      });
+
+      if (authError) {
+        // Check if error is "User already registered" - user might have signed up before
+        if (authError.message?.includes("already")) {
+          // Try to sign in instead
+          const signInResult = await supabase.auth.signInWithPassword({
+            email: pendingUser.email,
+            password: pendingUser.password,
+          });
+
+          if (signInResult.error) {
+            setErrors({ general: signInResult.error.message });
+            setLoading(false);
+            return;
+          }
+
+          // User already exists, just update profile with location
+          const { error: updateError } = await supabase.from("profiles").upsert(
+            {
+              id: signInResult.data.user.id,
+              email: pendingUser.email,
+              full_name: pendingUser.full_name,
+              role: pendingUser.role || "customer",
+              province: form.province,
+              municipality: form.city,
+              barangay: form.barangay,
+              street_address: form.street,
+              landmarks: form.landmarks,
+              latitude: form.latitude ? parseFloat(form.latitude) : null,
+              longitude: form.longitude ? parseFloat(form.longitude) : null,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "id" },
+          );
+
+          if (updateError) {
+            setErrors({ general: updateError.message });
+            setLoading(false);
+            return;
+          }
+
+          window.sessionStorage.removeItem("beavr_signup_data");
+          setDone(true);
+          await new Promise((r) => setTimeout(r, 700));
+          router.push("/");
+          return;
+        }
+
+        setErrors({ general: authError.message });
         setLoading(false);
-        console.error("Sign-in error:", signInResult.error);
-        setErrors({ general: `Login failed: ${signInResult.error}` });
         return;
       }
 
-      window.sessionStorage.removeItem('beavr_signup_data');
+      if (!authData.user) {
+        setErrors({ general: "Failed to create user" });
+        setLoading(false);
+        return;
+      }
+
+      // STEP 2: Insert profile with location data
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: authData.user.id,
+        email: pendingUser.email,
+        full_name: pendingUser.full_name,
+        role: pendingUser.role || "customer",
+        province: form.province || null,
+        municipality: form.city || null,
+        barangay: form.barangay || null,
+        street_address: form.street || null,
+        landmarks: form.landmarks || null,
+        latitude: form.latitude ? parseFloat(form.latitude) : null,
+        longitude: form.longitude ? parseFloat(form.longitude) : null,
+      });
+
+      if (profileError) {
+        console.error("Profile creation error:", profileError);
+        console.error("Profile error code:", profileError.code);
+        console.error("Profile error details:", profileError.details);
+        console.error("Profile error hint:", profileError.hint);
+        setErrors({
+          general: profileError.message || "Failed to create profile",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // STEP 3: Sign in the user
+      const { data: signInData, error: signInError } =
+        await supabase.auth.signInWithPassword({
+          email: pendingUser.email,
+          password: pendingUser.password,
+        });
+
+      if (signInError) {
+        console.error("Sign-in error:", signInError);
+        setErrors({ general: `Login failed: ${signInError.message}` });
+        setLoading(false);
+        return;
+      }
+
+      window.sessionStorage.removeItem("beavr_signup_data");
       setDone(true);
       await new Promise((r) => setTimeout(r, 700));
 
       // Redirect based on user role
-      const userRole = signInResult?.user?.role || 'customer';
-      const destination = userRole === 'specialist' ? '/specialist/dashboard' : '/';
+      const userRole = signInData.user.user_metadata?.role || "customer";
+      const destination =
+        userRole === "specialist" ? "/specialist/dashboard" : "/";
       router.push(destination);
     } catch (err) {
       setLoading(false);
-      const message = err instanceof Error ? err.message : "Login failed";
-      console.error("Sign-in exception:", err);
-      setErrors({ general: `Login failed: ${message}` });
+      const message = err instanceof Error ? err.message : "Signup failed";
+      console.error("Signup exception:", err);
+      setErrors({ general: `Signup failed: ${message}` });
     }
   };
 
@@ -227,10 +336,20 @@ function LocationForm() {
 
   const onCoordsChange = (lat: number, lon: number) => {
     setMapCoords({ lat, lon });
-    setForm((f) => ({ ...f, latitude: lat.toString(), longitude: lon.toString() }));
+    setForm((f) => ({
+      ...f,
+      latitude: lat.toString(),
+      longitude: lon.toString(),
+    }));
   };
 
-  const address = [form.street, form.barangay, form.city, form.province, form.region]
+  const address = [
+    form.street,
+    form.barangay,
+    form.city,
+    form.province,
+    form.region,
+  ]
     .filter(Boolean)
     .join(", ");
 
@@ -242,7 +361,10 @@ function LocationForm() {
     const controller = new AbortController();
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
 
-    fetch(url, { signal: controller.signal, headers: { "Accept-Language": "en" } })
+    fetch(url, {
+      signal: controller.signal,
+      headers: { "Accept-Language": "en" },
+    })
       .then((res) => res.json())
       .then((items) => {
         if (Array.isArray(items) && items.length > 0) {
@@ -251,7 +373,11 @@ function LocationForm() {
           const lon = Number(item.lon);
           if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
             setMapCoords({ lat, lon });
-            setForm((f) => ({ ...f, latitude: lat.toString(), longitude: lon.toString() }));
+            setForm((f) => ({
+              ...f,
+              latitude: lat.toString(),
+              longitude: lon.toString(),
+            }));
           }
         }
       })
@@ -259,7 +385,6 @@ function LocationForm() {
 
     return () => controller.abort();
   }, [address]);
-
 
   return (
     <div className={styles.page}>
@@ -282,98 +407,128 @@ function LocationForm() {
 
         <div className={styles.headline}>
           <h1 className={styles.title}>Set your location</h1>
-          <p className={styles.subtitle}>
-            Help us find specialists near you.
-          </p>
+          <p className={styles.subtitle}>Help us find specialists near you.</p>
         </div>
 
         <div className={styles.form}>
           {/* Region — default to CALABARZON */}
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="region">Region</label>
+            <label className={styles.label} htmlFor="region">
+              Region
+            </label>
             <select
               id="region"
               className={`${styles.input} ${errors.region ? styles.inputError : ""}`}
               value={form.regionCode}
               onChange={(e) => {
-                const selected = regions.find(r => r.code === e.target.value);
+                const selected = regions.find((r) => r.code === e.target.value);
                 if (selected) onRegionSelect(selected.code, selected.name);
               }}
             >
               <option value="">Select region</option>
               {regions.map((r) => (
-                <option key={r.code} value={r.code}>{r.name}</option>
+                <option key={r.code} value={r.code}>
+                  {r.name}
+                </option>
               ))}
             </select>
-            {errors.region && <span className={styles.errMsg}>{errors.region}</span>}
+            {errors.region && (
+              <span className={styles.errMsg}>{errors.region}</span>
+            )}
           </div>
 
           {/* Province */}
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="province">Province</label>
+            <label className={styles.label} htmlFor="province">
+              Province
+            </label>
             <select
               id="province"
               className={`${styles.input} ${errors.province ? styles.inputError : ""}`}
               value={form.provinceCode}
               onChange={(e) => {
-                const selected = provinces.find(p => p.code === e.target.value);
+                const selected = provinces.find(
+                  (p) => p.code === e.target.value,
+                );
                 if (selected) onProvinceSelect(selected.code, selected.name);
               }}
               disabled={!form.regionCode}
             >
               <option value="">Select province</option>
               {provinces.map((p) => (
-                <option key={p.code} value={p.code}>{p.name}</option>
+                <option key={p.code} value={p.code}>
+                  {p.name}
+                </option>
               ))}
             </select>
-            {errors.province && <span className={styles.errMsg}>{errors.province}</span>}
+            {errors.province && (
+              <span className={styles.errMsg}>{errors.province}</span>
+            )}
           </div>
 
           {/* Municipality/City */}
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="city">Municipality/City</label>
+            <label className={styles.label} htmlFor="city">
+              Municipality/City
+            </label>
             <select
               id="city"
               className={`${styles.input} ${errors.city ? styles.inputError : ""}`}
               value={form.cityCode}
               onChange={(e) => {
-                const selected = municipalities.find(m => m.code === e.target.value);
+                const selected = municipalities.find(
+                  (m) => m.code === e.target.value,
+                );
                 if (selected) onCitySelect(selected.code, selected.name);
               }}
               disabled={!form.provinceCode}
             >
               <option value="">Select municipality/city</option>
               {municipalities.map((m) => (
-                <option key={m.code} value={m.code}>{m.name}</option>
+                <option key={m.code} value={m.code}>
+                  {m.name}
+                </option>
               ))}
             </select>
-            {errors.city && <span className={styles.errMsg}>{errors.city}</span>}
+            {errors.city && (
+              <span className={styles.errMsg}>{errors.city}</span>
+            )}
           </div>
 
           {/* Barangay */}
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="barangay">Barangay</label>
+            <label className={styles.label} htmlFor="barangay">
+              Barangay
+            </label>
             <select
               id="barangay"
               className={`${styles.input} ${errors.barangay ? styles.inputError : ""}`}
               value={form.barangayCode}
               onChange={(e) => {
-                const selected = barangays.find(b => b.code === e.target.value);
+                const selected = barangays.find(
+                  (b) => b.code === e.target.value,
+                );
                 if (selected) onBarangaySelect(selected.code, selected.name);
               }}
               disabled={!form.cityCode}
             >
               <option value="">Select barangay</option>
               {barangays.map((b) => (
-                <option key={b.code} value={b.code}>{b.name}</option>
+                <option key={b.code} value={b.code}>
+                  {b.name}
+                </option>
               ))}
             </select>
-            {errors.barangay && <span className={styles.errMsg}>{errors.barangay}</span>}
+            {errors.barangay && (
+              <span className={styles.errMsg}>{errors.barangay}</span>
+            )}
           </div>
 
           {/* Street Address */}
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="street">Street Address</label>
+            <label className={styles.label} htmlFor="street">
+              Street Address
+            </label>
             <input
               id="street"
               type="text"
@@ -382,12 +537,16 @@ function LocationForm() {
               value={form.street}
               onChange={(e) => set("street", e.target.value)}
             />
-            {errors.street && <span className={styles.errMsg}>{errors.street}</span>}
+            {errors.street && (
+              <span className={styles.errMsg}>{errors.street}</span>
+            )}
           </div>
 
           {/* Landmarks */}
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="landmarks">Landmarks (optional)</label>
+            <label className={styles.label} htmlFor="landmarks">
+              Landmarks (optional)
+            </label>
             <input
               id="landmarks"
               type="text"
@@ -402,11 +561,16 @@ function LocationForm() {
           <div className={styles.field}>
             <label className={styles.label}>Pin Location</label>
             <div style={{ minHeight: 240 }}>
-              <LeafletPinMap current={mapCoords} onCoordsChange={onCoordsChange} />
+              <LeafletPinMap
+                current={mapCoords}
+                onCoordsChange={onCoordsChange}
+              />
             </div>
           </div>
 
-          {errors.general && <span className={styles.errMsg}>{errors.general}</span>}
+          {errors.general && (
+            <span className={styles.errMsg}>{errors.general}</span>
+          )}
 
           {/* Submit */}
           <button
@@ -416,11 +580,15 @@ function LocationForm() {
             aria-busy={loading}
           >
             {done ? (
-              <><Check size={18} strokeWidth={2.5} /> Location set!</>
+              <>
+                <Check size={18} strokeWidth={2.5} /> Location set!
+              </>
             ) : loading ? (
               <span className={styles.spinner} />
             ) : (
-              <>Set location <ArrowRight size={16} strokeWidth={2.5} /></>
+              <>
+                Set location <ArrowRight size={16} strokeWidth={2.5} />
+              </>
             )}
           </button>
         </div>

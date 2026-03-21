@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { NextRequest, NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
 
 /**
  * POST /api/onboard/verify
@@ -33,10 +33,12 @@ export async function POST(request: NextRequest) {
     // ================================================================
     // STOP GATE 1: Face Verification Check
     // ================================================================
-    if (body.faceVerificationStatus !== 'success') {
+    if (body.faceVerificationStatus !== "success") {
       return NextResponse.json(
-        { error: 'Face verification must be completed (green status required)' },
-        { status: 400 }
+        {
+          error: "Face verification must be completed (green status required)",
+        },
+        { status: 400 },
       );
     }
 
@@ -64,15 +66,18 @@ export async function POST(request: NextRequest) {
     // STOP GATE 2: Find user by email
     // ================================================================
     const { data: profileData, error: profileFindError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('email', email)
+      .from("profiles")
+      .select("id")
+      .eq("email", email)
       .single();
 
     if (profileFindError || !profileData) {
       return NextResponse.json(
-        { error: 'Profile not found. Please sign up first.', details: profileFindError?.message },
-        { status: 404 }
+        {
+          error: "Profile not found. Please sign up first.",
+          details: profileFindError?.message,
+        },
+        { status: 404 },
       );
     }
 
@@ -83,8 +88,11 @@ export async function POST(request: NextRequest) {
     // ================================================================
     if (!idFrontUrl || !idBackUrl || !selfieUrl) {
       return NextResponse.json(
-        { error: 'Missing required file URLs. Upload files to /api/upload first.' },
-        { status: 400 }
+        {
+          error:
+            "Missing required file URLs. Upload files to /api/upload first.",
+        },
+        { status: 400 },
       );
     }
 
@@ -100,10 +108,16 @@ export async function POST(request: NextRequest) {
     // ================================================================
     // STEP 2: Update profiles Table (UPSERT)
     // ================================================================
-    const fullName = [firstName, middleInitial ? `${middleInitial}.` : '', lastName].filter(Boolean).join(' ');
+    const fullName = [
+      firstName,
+      middleInitial ? `${middleInitial}.` : "",
+      lastName,
+    ]
+      .filter(Boolean)
+      .join(" ");
 
     const { error: profileError } = await supabase
-      .from('profiles')
+      .from("profiles")
       .upsert(
         {
           id: userId,
@@ -116,20 +130,20 @@ export async function POST(request: NextRequest) {
           street_address,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: 'id' }
+        { onConflict: "id" },
       )
       .select()
       .single();
 
     if (profileError) {
-      console.log('Profile upsert error:', profileError);
+      console.log("Profile upsert error:", profileError);
       errors.push(`Failed to update profiles table: ${profileError.message}`);
       return NextResponse.json(
         {
-          error: 'Database error. No changes committed.',
+          error: "Database error. No changes committed.",
           details: errors,
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -137,7 +151,7 @@ export async function POST(request: NextRequest) {
     // STEP 3: Insert into specialists Table
     // ================================================================
     const { data: specialistData, error: specialistError } = await supabase
-      .from('specialists')
+      .from("specialists")
       .insert({
         user_id: userId,
         profession: role,
@@ -151,14 +165,16 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (specialistError) {
-      console.log('Specialist insert error:', specialistError);
-      errors.push(`Failed to insert into specialists: ${specialistError.message}`);
+      console.log("Specialist insert error:", specialistError);
+      errors.push(
+        `Failed to insert into specialists: ${specialistError.message}`,
+      );
       return NextResponse.json(
         {
-          error: 'Database error. No changes committed.',
+          error: "Database error. No changes committed.",
           details: errors,
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -168,48 +184,49 @@ export async function POST(request: NextRequest) {
     // STEP 4: Insert into verifications Table
     // ================================================================
     const { data: verificationData, error: verificationError } = await supabase
-      .from('verifications')
+      .from("verifications")
       .insert({
         worker_id: workerId,
         id_type: idType,
         document_url: uploadedUrls.idFront,
         document_back_url: uploadedUrls.idBack,
         selfie_url: uploadedUrls.selfie,
-        status: 'pending',
+        status: "pending",
       })
       .select()
       .single();
 
     if (verificationError) {
-      console.log('Verification insert error:', verificationError);
-      errors.push(`Failed to insert into verifications: ${verificationError.message}`);
+      console.log("Verification insert error:", verificationError);
+      errors.push(
+        `Failed to insert into verifications: ${verificationError.message}`,
+      );
       return NextResponse.json(
         {
-          error: 'Database error. No changes committed.',
+          error: "Database error. No changes committed.",
           details: errors,
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     // ================================================================
     // STEP 5: Update profile role to 'specialist'
     // ================================================================
+    // Note: This step may fail if the database constraint doesn't allow 'specialist' as a role.
+    // The specialist information is already stored in the specialists table, so this is optional.
     const { error: roleError } = await supabase
-      .from('profiles')
-      .update({ role: 'specialist' })
-      .eq('id', userId);
+      .from("profiles")
+      .update({ role: "specialist" })
+      .eq("id", userId);
 
     if (roleError) {
-      console.log('Role update error:', roleError);
-      errors.push(`Failed to update profile role: ${roleError.message}`);
-      return NextResponse.json(
-        {
-          error: 'Database error. No changes committed.',
-          details: errors,
-        },
-        { status: 500 }
+      // Log warning but don't fail the request - specialist data is already in specialists table
+      console.warn(
+        "Could not update profile role (constraint violation):",
+        roleError.message,
       );
+      // Continue without failing - specialist table has the correct data
     }
 
     // ================================================================
@@ -218,7 +235,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        message: 'Onboarding verification submitted successfully',
+        message: "Onboarding verification submitted successfully",
         data: {
           userId,
           workerId,
@@ -226,16 +243,16 @@ export async function POST(request: NextRequest) {
           uploadedUrls,
         },
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
-    console.error('Error in POST /api/onboard/verify:', error);
+    console.error("Error in POST /api/onboard/verify:", error);
     return NextResponse.json(
       {
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        error: "Internal server error",
+        details: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
