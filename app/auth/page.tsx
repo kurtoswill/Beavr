@@ -3,15 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowRight, Check, ArrowLeft } from "lucide-react";
-import { createClient } from "@supabase/supabase-js";
 import styles from "./page.module.css";
-
-/* ------------------------------------------------------------------ */
-/*  Supabase Client                                                     */
-/* ------------------------------------------------------------------ */
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { signIn, signUp } from "../actions/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -95,43 +88,33 @@ export default function AuthPage() {
     if (!validate()) return;
     setLoading(true);
 
+    const formData = new FormData();
+    formData.append('email', form.email);
+    formData.append('password', form.password);
+    if (mode === 'signup') {
+      formData.append('fullName', form.name);
+      formData.append('role', 'customer');
+    }
+
     try {
-      if (mode === "signup") {
-        // Sign up new user - profile will be created by trigger
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: form.email,
-          password: form.password,
-          options: {
-            data: {
-              full_name: form.name,
-              role: 'customer',
-            },
-          },
-        });
+      const result = mode === 'signup' ? await signUp(formData) : await signIn(formData);
 
-        if (authError) {
-          console.error("Signup error:", authError);
-          throw new Error(authError.message || "Failed to create account");
-        }
+      if (result?.error) {
+        console.error(`${mode} error:`, result.error);
+        setErrors({ email: result.error });
+        return;
+      }
 
+      if (mode === 'signin' && result?.user) {
         setDone(true);
         await new Promise((r) => setTimeout(r, 700));
         router.push("/");
-      } else {
-        // Sign in existing user
-        const { error: authError } = await supabase.auth.signInWithPassword({
-          email: form.email,
-          password: form.password,
-        });
-
-        if (authError) {
-          console.error("Signin error:", authError);
-          throw new Error(authError.message || "Invalid email or password");
-        }
-
+      } else if (mode === 'signup' && result?.user) {
+        const signupData = { ...result.user, password: form.password };
+        window.sessionStorage.setItem('beavr_signup_data', JSON.stringify(signupData));
         setDone(true);
         await new Promise((r) => setTimeout(r, 700));
-        router.push("/");
+        router.push('/auth/location');
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Authentication failed";
