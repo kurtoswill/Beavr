@@ -148,10 +148,16 @@ export function FaceVerificationModal({
   useEffect(() => {
     if (isOpen && autoStart && !isInitializedRef.current) {
       isInitializedRef.current = true;
-      setStatus("loading"); // eslint-disable-line react-hooks/exhaustive-deps
-      setErrorMsg("");
+      const timer = window.setTimeout(() => {
+        initCamera();
+      }, 0);
+      return () => {
+        window.clearTimeout(timer);
+      };
     }
-  }, [isOpen, autoStart]);
+
+    return;
+  }, [isOpen, autoStart, initCamera]);
 
   const handleUserMedia = useCallback(() => {
     console.log("✅ Camera permission granted, stream obtained");

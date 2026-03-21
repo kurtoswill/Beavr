@@ -40,24 +40,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ================================================================
-    // STOP GATE 2: Get User Session (TEMPORARILY DISABLED FOR TESTING)
-    // ================================================================
-    // const {
-    //   data: { user },
-    //   error: authError,
-    // } = await supabase.auth.getUser();
-
-    // if (authError || !user?.id) {
-    //   return NextResponse.json(
-    //     { error: 'User session invalid or expired', details: authError?.message },
-    //     { status: 401 }
-    //   );
-    // }
-
-    // const userId = user.id;
-    const userId = crypto.randomUUID(); // TEMPORARY: Generate test UUID
-
     const {
       firstName,
       middleInitial,
@@ -77,6 +59,24 @@ export async function POST(request: NextRequest) {
       idBackUrl,
       selfieUrl,
     } = body;
+
+    // ================================================================
+    // STOP GATE 2: Find user by email
+    // ================================================================
+    const { data: profileData, error: profileFindError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (profileFindError || !profileData) {
+      return NextResponse.json(
+        { error: 'Profile not found. Please sign up first.', details: profileFindError?.message },
+        { status: 404 }
+      );
+    }
+
+    const userId = profileData.id;
 
     // ================================================================
     // VALIDATE: All file URLs must be provided
@@ -183,6 +183,26 @@ export async function POST(request: NextRequest) {
     if (verificationError) {
       console.log('Verification insert error:', verificationError);
       errors.push(`Failed to insert into verifications: ${verificationError.message}`);
+      return NextResponse.json(
+        {
+          error: 'Database error. No changes committed.',
+          details: errors,
+        },
+        { status: 500 }
+      );
+    }
+
+    // ================================================================
+    // STEP 5: Update profile role to 'specialist'
+    // ================================================================
+    const { error: roleError } = await supabase
+      .from('profiles')
+      .update({ role: 'specialist' })
+      .eq('id', userId);
+
+    if (roleError) {
+      console.log('Role update error:', roleError);
+      errors.push(`Failed to update profile role: ${roleError.message}`);
       return NextResponse.json(
         {
           error: 'Database error. No changes committed.',
