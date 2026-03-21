@@ -181,20 +181,14 @@ export default function LandingPage() {
 
         {/* Top bar */}
         <header className={styles.topBar}>
-          <div className={styles.avatar}>
-            {/* ✅ Use regular img tag for external URLs */}
-            <img
-              src="https://i.pravatar.cc/80?img=47"
-              alt="User avatar"
-              width={80}
-              height={80}
-            />
-          </div>
+<button className={styles.signInBtn} onClick={() => router.push("/auth")} aria-label="Sign in">
+            Sign in
+          </button>
           <button className={styles.locationPill} aria-label="Change location">
             <span className={styles.locationLabel}>Your location</span>
             <span className={styles.locationValue}>
               <MapPin size={14} strokeWidth={2.5} />
-              Bancod, Indang, Cavite&nbsp;&nbsp;·&nbsp;&nbsp;3km
+              <span className={styles.locationBlank}>Set your location</span>
               <ChevronDown size={14} strokeWidth={2.5} />
             </span>
           </button>
