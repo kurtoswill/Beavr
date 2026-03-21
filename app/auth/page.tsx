@@ -3,8 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowRight, Check, ArrowLeft } from "lucide-react";
+import { createClient } from "@supabase/supabase-js";
 import styles from "./page.module.css";
 import { signIn, signUp } from "../actions/auth";
+
+/* ------------------------------------------------------------------ */
+/*  Supabase Client                                                     */
+/* ------------------------------------------------------------------ */
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -61,7 +69,7 @@ function PasswordStrength({ password }: { password: string }) {
 /* ================================================================== */
 export default function AuthPage() {
   const router = useRouter();
-  const [mode, setMode]       = useState<Mode>("signin");
+  const [mode, setMode]       = useState<Mode>("signup");
   const [form, setForm]       = useState<FormState>({ name: "", email: "", password: "" });
   const [errors, setErrors]   = useState<FieldErrors>({});
   const [showPw, setShowPw]   = useState(false);
@@ -87,37 +95,57 @@ export default function AuthPage() {
   const handleSubmit = async () => {
     if (!validate()) return;
     setLoading(true);
-    const formData = new FormData();
-    formData.append('email', form.email);
-    formData.append('password', form.password);
-    if (mode === 'signup') {
-      formData.append('fullName', form.name);
-      formData.append('role', 'customer');
-    }
 
-    const result = mode === 'signin' ? await signIn(formData) : await signUp(formData);
+    try {
+      if (mode === "signup") {
+        // Sign up new user
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: form.email,
+          password: form.password,
+          options: {
+            data: {
+              full_name: form.name,
+            },
+          },
+        });
 
-    setLoading(false);
+        if (authError) throw authError;
 
-    if (result && 'error' in result && result.error) {
-      setErrors({ email: result.error });
-      return;
-    }
+        // Create profile entry
+        if (authData.user) {
+          const { error: profileError } = await supabase
+            .from("profiles")
+            .insert({
+              id: authData.user.id,
+              full_name: form.name,
+              email: form.email,
+              created_at: new Date().toISOString(),
+            });
 
-    if (mode === 'signin' && result && 'user' in result && result.user) {
-      setDone(true);
-      await new Promise((r) => setTimeout(r, 700));
-      const destination = result.user.role === 'specialist' ? '/specialist/dashboard' : '/';
-      router.push(destination);
-      return;
-    }
+          if (profileError) throw profileError;
+        }
 
-    if (mode === 'signup' && result && 'user' in result && result.user) {
-      const signupData = result.user;
-      window.sessionStorage.setItem('beavr_signup_data', JSON.stringify(signupData));
-      setDone(true);
-      await new Promise((r) => setTimeout(r, 700));
-      router.push('/auth/location');
+        setDone(true);
+        await new Promise((r) => setTimeout(r, 700));
+        router.push("/");
+      } else {
+        // Sign in existing user
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: form.email,
+          password: form.password,
+        });
+
+        if (authError) throw authError;
+
+        setDone(true);
+        await new Promise((r) => setTimeout(r, 700));
+        router.push("/");
+      }
+    } catch (error: any) {
+      console.error("Auth error:", error);
+      setErrors({ email: error.message || "Authentication failed" });
+    } finally {
+      setLoading(false);
     }
   };
 

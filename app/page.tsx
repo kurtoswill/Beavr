@@ -1,6 +1,7 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
 import {
   MapPin,
   ChevronDown,
@@ -12,10 +13,18 @@ import {
   HelpCircle,
   Paintbrush,
   Truck,
+  LogOut,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import ServiceChip from "@/components/ServiceChip/ServiceChip";
 import styles from "./page.module.css";
+
+/* ------------------------------------------------------------------ */
+/*  Supabase Client                                                     */
+/* ------------------------------------------------------------------ */
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 /* ------------------------------------------------------------------ */
 /*  Data                                                                */
@@ -40,7 +49,13 @@ const SERVICES: Service[] = [
 interface UploadedFile {
   name: string;
   preview: string;
-  file: File;  // ✅ Added for API upload
+  file: File;
+}
+
+interface Location {
+  latitude: number;
+  longitude: number;
+  address: string;
 }
 
 /* ================================================================== */
@@ -48,6 +63,10 @@ interface UploadedFile {
 /* ================================================================== */
 export default function LandingPage() {
   const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  
   const [query, setQuery] = useState("");
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<UploadedFile[]>([]);
@@ -56,11 +75,141 @@ export default function LandingPage() {
     query?: string;
     description?: string;
   }>({});
-  const [isLoading, setIsLoading] = useState(false);  // ✅ Added loading state
+  const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Test customer ID (replace with auth later)
-  const CUSTOMER_ID = "dc8e8fd1-3dff-474e-a3b5-fbe005e9d636";
+  // Location state
+  const [location, setLocation] = useState<Location | null>(null);
+  const [isLocating, setIsLocating] = useState(true);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  // Check auth status on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          setIsLoggedIn(true);
+          // Get user's name from profile
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("id", user.id)
+            .single();
+          setUserName(profile?.full_name || user.email?.split("@")[0] || "User");
+        } else {
+          setIsLoggedIn(false);
+        }
+      } catch (error) {
+        console.error("Auth check error:", error);
+        setIsLoggedIn(false);
+      } finally {
+        setIsLoadingAuth(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // Auto-detect location on mount
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported by your browser");
+      setIsLocating(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        
+        // Reverse geocode to get address
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+          );
+          const data = await response.json();
+          
+          setLocation({
+            latitude,
+            longitude,
+            address: data.address?.barangay || data.address?.suburb || data.address?.city || "Your location",
+          });
+        } catch (error) {
+          console.error("Reverse geocoding error:", error);
+          setLocation({
+            latitude,
+            longitude,
+            address: "Current location",
+          });
+        }
+        setIsLocating(false);
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        setLocationError("Unable to get your location");
+        setIsLocating(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000, // 5 minutes
+      }
+    );
+  }, []);
+
+  // Check auth before finding specialist
+  const checkAuthAndProceed = (callback: () => void) => {
+    if (!isLoggedIn) {
+      router.push("/auth");
+      return;
+    }
+    callback();
+  };
+
+  const handleFindSpecialist = async () => {
+    checkAuthAndProceed(async () => {
+      const newErrors: { query?: string; description?: string } = {};
+      if (!query.trim()) newErrors.query = "Please tell us what you need.";
+      if (!description.trim())
+        newErrors.description = "Please describe the problem.";
+
+      if (Object.keys(newErrors).length) {
+        setErrors(newErrors);
+        return;
+      }
+
+      setErrors({});
+      setIsLoading(true);
+
+      try {
+        // Get current user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          alert("Please sign in to create a job");
+          router.push("/auth");
+          return;
+        }
+
+        // Step 1: Upload all images
+        const imageUrls = await Promise.all(
+          files.map((f) => uploadImage(f.file))
+        );
+
+        // Step 2: Create job
+        const jobId = await createJob(imageUrls, user.id);
+
+        // Step 3: Redirect to tracking page
+        router.push(`/tracking/${jobId}`);
+      } catch (error) {
+        console.error("Error creating job:", error);
+        alert("Failed to create job. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
+    });
+  };
 
   /* ---- Upload image to Supabase Storage ---- */
   const uploadImage = async (file: File): Promise<string> => {
@@ -83,21 +232,23 @@ export default function LandingPage() {
   };
 
   /* ---- Create job via API ---- */
-  const createJob = async (imageUrls: string[]): Promise<string> => {
+  const createJob = async (imageUrls: string[], customerId: string): Promise<string> => {
     const response = await fetch("/api/jobs", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        customer_id: CUSTOMER_ID,
+        customer_id: customerId,
         profession: query || "General Handyman",
         description,
-        street_address: "Bancod, Indang, Cavite",
+        street_address: location?.address || "Your location",
         province: "Cavite",
         municipality: "Indang",
-        barangay: "Bancod",
+        barangay: location?.address || "Your location",
         photos: imageUrls.length > 0 ? imageUrls : null,
+        latitude: location?.latitude,
+        longitude: location?.longitude,
       }),
     });
 
@@ -110,40 +261,6 @@ export default function LandingPage() {
     return data.job.id;
   };
 
-  /* ---- Handle Find Specialist ---- */
-  const handleFindSpecialist = async () => {
-    const newErrors: { query?: string; description?: string } = {};
-    if (!query.trim()) newErrors.query = "Please tell us what you need.";
-    if (!description.trim())
-      newErrors.description = "Please describe the problem.";
-
-    if (Object.keys(newErrors).length) {
-      setErrors(newErrors);
-      return;
-    }
-
-    setErrors({});
-    setIsLoading(true);  // ✅ Set loading
-
-    try {
-      // Step 1: Upload all images
-      const imageUrls = await Promise.all(
-        files.map((f) => uploadImage(f.file))
-      );
-
-      // Step 2: Create job
-      const jobId = await createJob(imageUrls);
-
-      // Step 3: Redirect to tracking page
-      router.push(`/tracking/${jobId}`);
-    } catch (error) {
-      console.error("Error creating job:", error);
-      alert("Failed to create job. Please try again.");
-    } finally {
-      setIsLoading(false);  // ✅ Reset loading
-    }
-  };
-
   /* ---- File helpers ---- */
   const addFiles = (incoming: FileList | null) => {
     if (!incoming) return;
@@ -152,7 +269,7 @@ export default function LandingPage() {
       .map((f) => ({
         name: f.name,
         preview: URL.createObjectURL(f),
-        file: f,  // ✅ Store file object for upload
+        file: f,
       }));
     setFiles((prev) => [...prev, ...next].slice(0, 6));
   };
@@ -171,6 +288,49 @@ export default function LandingPage() {
     setQuery((prev) => (prev === label ? "" : label));
   };
 
+  /* ---- Sign out ---- */
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setIsLoggedIn(false);
+    setUserName(null);
+    router.refresh();
+  };
+
+  /* ---- Request location ---- */
+  const requestLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported by your browser");
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+          );
+          const data = await response.json();
+          
+          setLocation({
+            latitude,
+            longitude,
+            address: data.address?.barangay || data.address?.suburb || data.address?.city || "Your location",
+          });
+        } catch (error) {
+          setLocation({ latitude, longitude, address: "Current location" });
+        }
+        setIsLocating(false);
+      },
+      (error) => {
+        setLocationError("Unable to get your location");
+        setIsLocating(false);
+      }
+    );
+  };
+
   /* ---------------------------------------------------------------- */
   return (
     <main className={styles.page}>
@@ -181,14 +341,49 @@ export default function LandingPage() {
 
         {/* Top bar */}
         <header className={styles.topBar}>
-<button className={styles.signInBtn} onClick={() => router.push("/auth")} aria-label="Sign in">
-            Sign in
-          </button>
-          <button className={styles.locationPill} aria-label="Change location">
+          {isLoggedIn ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <span style={{ color: "#9ca3af", fontSize: "0.875rem" }}>
+                Hi, {userName}
+              </span>
+              <button
+                className={styles.signInBtn}
+                onClick={handleSignOut}
+                aria-label="Sign out"
+              >
+                <LogOut size={14} strokeWidth={2} />
+              </button>
+            </div>
+          ) : (
+            <button
+              className={styles.signInBtn}
+              onClick={() => router.push("/auth")}
+              aria-label="Sign in"
+            >
+              Sign in
+            </button>
+          )}
+          
+          <button
+            className={styles.locationPill}
+            onClick={requestLocation}
+            aria-label="Update location"
+            disabled={isLocating}
+          >
             <span className={styles.locationLabel}>Your location</span>
             <span className={styles.locationValue}>
               <MapPin size={14} strokeWidth={2.5} />
-              <span className={styles.locationBlank}>Set your location</span>
+              {isLocating ? (
+                <span className={styles.locationBlank}>Detecting...</span>
+              ) : location ? (
+                <span style={{ color: "#1f2937" }}>{location.address}</span>
+              ) : locationError ? (
+                <span className={styles.locationBlank} style={{ color: "#ef4444" }}>
+                  {locationError}
+                </span>
+              ) : (
+                <span className={styles.locationBlank}>Set your location</span>
+              )}
               <ChevronDown size={14} strokeWidth={2.5} />
             </span>
           </button>
@@ -321,9 +516,10 @@ export default function LandingPage() {
         <button
           className={styles.ctaPrimary}
           onClick={handleFindSpecialist}
-          disabled={isLoading}
+          disabled={isLoading || !isLoggedIn}
+          title={!isLoggedIn ? "Please sign in to find a specialist" : ""}
         >
-          {isLoading ? "Creating job..." : "Find a specialist"}
+          {isLoading ? "Creating job..." : isLoggedIn ? "Find a specialist" : "Sign in to continue"}
         </button>
 
         {/* Divider */}
@@ -336,9 +532,11 @@ export default function LandingPage() {
         {/* Secondary CTA */}
         <button
           className={styles.ctaSecondary}
-          onClick={() => router.push("/onboard")}
+          onClick={() => checkAuthAndProceed(() => router.push("/onboard"))}
+          disabled={!isLoggedIn}
+          title={!isLoggedIn ? "Please sign in to become a specialist" : ""}
         >
-          Become a specialist
+          {isLoggedIn ? "Become a specialist" : "Sign in to continue"}
         </button>
       </section>
     </main>
