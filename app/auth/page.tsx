@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowRight, Check, ArrowLeft } from "lucide-react";
 import styles from "./page.module.css";
+import { signIn, signUp } from "../actions/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -86,11 +87,38 @@ export default function AuthPage() {
   const handleSubmit = async () => {
     if (!validate()) return;
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
+    const formData = new FormData();
+    formData.append('email', form.email);
+    formData.append('password', form.password);
+    if (mode === 'signup') {
+      formData.append('fullName', form.name);
+      formData.append('role', 'customer');
+    }
+
+    const result = mode === 'signin' ? await signIn(formData) : await signUp(formData);
+
     setLoading(false);
-    setDone(true);
-    await new Promise((r) => setTimeout(r, 700));
-    router.push("/");
+
+    if (result && 'error' in result && result.error) {
+      setErrors({ email: result.error });
+      return;
+    }
+
+    if (mode === 'signin' && result && 'user' in result && result.user) {
+      setDone(true);
+      await new Promise((r) => setTimeout(r, 700));
+      const destination = result.user.role === 'specialist' ? '/specialist/dashboard' : '/';
+      router.push(destination);
+      return;
+    }
+
+    if (mode === 'signup' && result && 'user' in result && result.user) {
+      const signupData = result.user;
+      window.sessionStorage.setItem('beavr_signup_data', JSON.stringify(signupData));
+      setDone(true);
+      await new Promise((r) => setTimeout(r, 700));
+      router.push('/auth/location');
+    }
   };
 
   const switchMode = (m: Mode) => {
