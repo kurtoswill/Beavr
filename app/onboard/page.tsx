@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
 import {
   ChevronDown,
   CloudUpload,
@@ -16,6 +17,13 @@ import { FaceVerificationModal } from "./FaceVerificationModal";
 const LeafletPinMap = dynamic(() => import("./LeafletMap").then((mod) => mod.LeafletPinMap), {
   ssr: false,
 });
+
+/* ------------------------------------------------------------------ */
+/*  Supabase Client                                                     */
+/* ------------------------------------------------------------------ */
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 /* ================================================================== */
 /*  Data                                                                */
@@ -653,6 +661,112 @@ export default function OnboardPage() {
       }
     })();
   }, []);
+
+  // Auto-fill user data and location on mount
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        // Get authenticated user
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user) {
+          console.warn("No authenticated user in onboarding");
+          return;
+        }
+
+        // Get user profile
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name, email, phone, province, municipality, barangay, street_address")
+          .eq("id", user.id)
+          .single();
+
+        // Parse name
+        const fullName = profile?.full_name || "";
+        const nameParts = fullName.split(" ");
+        const firstName = nameParts[0] || "";
+        const lastName = nameParts[nameParts.length - 1] || "";
+        const middleInitial = nameParts.length > 2 ? nameParts[1]?.charAt(0) || "" : "";
+
+        // Get saved location from localStorage
+        const savedLocation = localStorage.getItem("beavr_location");
+        const location = savedLocation ? JSON.parse(savedLocation) : null;
+
+        // Auto-fill basic data first
+        setData((d) => ({
+          ...d,
+          firstName: firstName || d.firstName,
+          middleInitial: middleInitial || d.middleInitial,
+          lastName: lastName || d.lastName,
+          email: profile?.email || user.email || d.email,
+          phone: profile?.phone || d.phone,
+          street: profile?.street_address || d.street,
+          latitude: location?.latitude?.toString() || d.latitude,
+          longitude: location?.longitude?.toString() || d.longitude,
+        }));
+
+        // Set map coordinates if location available
+        if (location?.latitude && location?.longitude) {
+          setMapCoords({ lat: location.latitude, lon: location.longitude });
+          setMapLabel(location.address || "Current location");
+        }
+
+        // Auto-select location from PSGC after data loads
+        const targetProvince = profile?.province || location?.province;
+        const targetCity = profile?.municipality || location?.city;
+        const targetBarangay = profile?.barangay || location?.barangay;
+
+        if (targetProvince || targetCity || targetBarangay) {
+          // Wait a bit for PSGC data to load
+          setTimeout(async () => {
+            // Load and select province
+            if (targetProvince && regions.length > 0) {
+              const provinces = await fetchPSGCResource("provinces", "040000000");
+              const matchedProvince = provinces.find((p: PSGCItem) => 
+                p.name.toLowerCase().includes(targetProvince.toLowerCase())
+              );
+              
+              if (matchedProvince) {
+                onProvinceSelect(matchedProvince.code, matchedProvince.name);
+                
+                // Load and select city
+                if (targetCity) {
+                  setTimeout(async () => {
+                    const cities = await fetchPSGCResource("cities-municipalities", matchedProvince.code);
+                    const matchedCity = cities.find((c: PSGCItem) => 
+                      c.name.toLowerCase().includes(targetCity.toLowerCase())
+                    );
+                    
+                    if (matchedCity) {
+                      onCitySelect(matchedCity.code, matchedCity.name);
+                      
+                      // Load and select barangay
+                      if (targetBarangay) {
+                        setTimeout(async () => {
+                          const brgys = await fetchPSGCResource("barangays", matchedCity.code);
+                          const matchedBarangay = brgys.find((b: PSGCItem) => 
+                            b.name.toLowerCase().includes(targetBarangay.toLowerCase())
+                          );
+                          
+                          if (matchedBarangay) {
+                            onBarangaySelect(matchedBarangay.code, matchedBarangay.name);
+                          }
+                        }, 300);
+                      }
+                    }
+                  }, 300);
+                }
+              }
+            }
+          }, 500);
+        }
+      } catch (error) {
+        console.error("Error loading user data:", error);
+      }
+    };
+
+    loadUserData();
+  }, [regions.length]);
 
   const updateCoordinates = (lat: number, lon: number) => {
     setMapCoords({ lat, lon });

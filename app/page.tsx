@@ -136,18 +136,31 @@ export default function LandingPage() {
           );
           const data = await response.json();
           
-          setLocation({
+          const locationData = {
             latitude,
             longitude,
             address: data.address?.barangay || data.address?.suburb || data.address?.city || "Your location",
-          });
+            province: data.address?.state || data.address?.province || "Cavite",
+            city: data.address?.city || data.address?.municipality || "",
+            barangay: data.address?.barangay || "",
+          };
+          
+          setLocation(locationData);
+          
+          // Save to localStorage for onboarding page
+          localStorage.setItem("beavr_location", JSON.stringify(locationData));
         } catch (error) {
           console.error("Reverse geocoding error:", error);
-          setLocation({
+          const locationData = {
             latitude,
             longitude,
             address: "Current location",
-          });
+            province: "",
+            city: "",
+            barangay: "",
+          };
+          setLocation(locationData);
+          localStorage.setItem("beavr_location", JSON.stringify(locationData));
         }
         setIsLocating(false);
       },
