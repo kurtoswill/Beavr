@@ -97,23 +97,19 @@ export default function AuthPage() {
     }
 
     try {
-      const result = mode === 'signin' ? await signIn(formData) : await signUp(formData);
+      const result = mode === 'signup' ? await signUp(formData) : await signIn(formData);
 
-      if (result && 'error' in result && result.error) {
+      if (result?.error) {
+        console.error(`${mode} error:`, result.error);
         setErrors({ email: result.error });
-        setLoading(false);
         return;
       }
 
-      if (mode === 'signin' && result && 'user' in result && result.user) {
+      if (mode === 'signin' && result?.user) {
         setDone(true);
         await new Promise((r) => setTimeout(r, 700));
-        const destination = result.user.role === 'specialist' ? '/specialist/dashboard' : '/';
-        router.push(destination);
-        return;
-      }
-
-      if (mode === 'signup' && result && 'user' in result && result.user) {
+        router.push("/");
+      } else if (mode === 'signup' && result?.user) {
         const signupData = { ...result.user, password: form.password };
         window.sessionStorage.setItem('beavr_signup_data', JSON.stringify(signupData));
         setDone(true);
