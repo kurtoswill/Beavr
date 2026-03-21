@@ -514,8 +514,9 @@ function Step5Verify({
 
         if (!response.ok) {
           const errorData = await response.json();
+          console.log('Full error data:', errorData);
           throw new Error(
-            errorData.error || `Verification failed with status ${response.status}`
+            errorData.details ? `${errorData.error} - Details: ${errorData.details.join(', ')}` : errorData.error || `Verification failed with status ${response.status}`
           );
         }
 

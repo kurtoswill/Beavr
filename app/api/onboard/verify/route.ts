@@ -98,38 +98,40 @@ export async function POST(request: NextRequest) {
     };
 
     // ================================================================
-    // STEP 2: Update profiles Table (UPSERT) - TEMPORARILY SKIPPED
+    // STEP 2: Update profiles Table (UPSERT)
     // ================================================================
-    // const { error: profileError } = await supabase
-    //   .from('profiles')
-    //   .upsert(
-    //     {
-    //       id: userId,
-    //       full_name: fullName,
-    //       email,
-    //       phone,
-    //       province,
-    //       municipality,
-    //       barangay,
-    //       street_address,
-    //       onboarded: true,
-    //       updated_at: new Date().toISOString(),
-    //     },
-    //     { onConflict: 'id' }
-    //   )
-    //   .select()
-    //   .single();
+    const fullName = [firstName, middleInitial ? `${middleInitial}.` : '', lastName].filter(Boolean).join(' ');
 
-    // if (profileError) {
-    //   errors.push(`Failed to update profiles table: ${profileError.message}`);
-    //   return NextResponse.json(
-    //     {
-    //       error: 'Database error. No changes committed.',
-    //       details: errors,
-    //     },
-    //     { status: 500 }
-    //   );
-    // }
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .upsert(
+        {
+          id: userId,
+          full_name: fullName,
+          email,
+          phone,
+          province,
+          municipality,
+          barangay,
+          street_address,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'id' }
+      )
+      .select()
+      .single();
+
+    if (profileError) {
+      console.log('Profile upsert error:', profileError);
+      errors.push(`Failed to update profiles table: ${profileError.message}`);
+      return NextResponse.json(
+        {
+          error: 'Database error. No changes committed.',
+          details: errors,
+        },
+        { status: 500 }
+      );
+    }
 
     // ================================================================
     // STEP 3: Insert into specialists Table
@@ -149,6 +151,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (specialistError) {
+      console.log('Specialist insert error:', specialistError);
       errors.push(`Failed to insert into specialists: ${specialistError.message}`);
       return NextResponse.json(
         {
@@ -168,18 +171,17 @@ export async function POST(request: NextRequest) {
       .from('verifications')
       .insert({
         worker_id: workerId,
-        user_id: userId,
         id_type: idType,
         document_url: uploadedUrls.idFront,
         document_back_url: uploadedUrls.idBack,
         selfie_url: uploadedUrls.selfie,
         status: 'pending',
-        created_at: new Date().toISOString(),
       })
       .select()
       .single();
 
     if (verificationError) {
+      console.log('Verification insert error:', verificationError);
       errors.push(`Failed to insert into verifications: ${verificationError.message}`);
       return NextResponse.json(
         {
