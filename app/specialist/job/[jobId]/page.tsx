@@ -156,8 +156,8 @@ function RealMap({ job, journeyProgress, status }: { job: JobData; journeyProgre
         className: "worker-marker",
         html: `
           <div style="position: relative; width: 48px; height: 48px;">
-            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: #22C55E; opacity: 0.3; animation: pulse 2s infinite;"></div>
-            <div style="position: absolute; top: 2px; left: 2px; width: 44px; height: 44px; border-radius: 50%; background: white; border: 3px solid #22C55E; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: #337df9; opacity: 0.3; animation: pulse 2s infinite;"></div>
+            <div style="position: absolute; top: 2px; left: 2px; width: 44px; height: 44px; border-radius: 50%; background: white; border: 3px solid #337df9; overflow: hidden; display: flex; align-items: center; justify-content: center;">
               <img src="https://images.unsplash.com/photo-1621905251918-48416bd8575a?w=800&q=80" style="width: 100%; height: 100%; object-fit: cover;" />
             </div>
           </div>
@@ -276,7 +276,7 @@ function RealMap({ job, journeyProgress, status }: { job: JobData; journeyProgre
       {localRouteCoordinates && (
         <Polyline
           positions={localRouteCoordinates}
-          color="#22C55E"
+          color="#337df9"
           weight={4}
           opacity={0.8}
           dashArray="10, 10"

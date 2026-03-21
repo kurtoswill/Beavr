@@ -352,7 +352,7 @@ function TrackingMap({
       {status === "on_the_way" && localRouteCoordinates && (
         <Polyline
           positions={localRouteCoordinates}
-          color="#22C55E"
+          color="#337df9"
           weight={4}
           opacity={0.8}
           dashArray="10, 10"
