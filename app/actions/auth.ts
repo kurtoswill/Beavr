@@ -3,7 +3,6 @@
 import { supabase } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import bcrypt from 'bcryptjs';
 
 export async function signUp(formData: FormData) {
   const email = formData.get("email") as string;
@@ -11,34 +10,33 @@ export async function signUp(formData: FormData) {
   const fullName = formData.get("fullName") as string;
   const role = formData.get("role") as string || 'customer';
 
-  // Hash the password
-  const saltRounds = 10;
-  const hashedPassword = await bcrypt.hash(password, saltRounds);
+  // Create user in Supabase auth
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        full_name: fullName,
+        role: role,
+      }
+    }
+  });
 
-  const userId = crypto.randomUUID();
-
-  // Check duplicate email early
-  const { data: existingProfile, error: checkError } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('email', email)
-    .single();
-
-  if (checkError && checkError.code !== 'PGRST116') {
-    return { error: `Unable to check email: ${checkError.message}` };
+  if (error) {
+    return { error: error.message };
   }
 
-  if (existingProfile) {
-    return { error: 'A user with this email already exists' };
+  if (!data.user) {
+    return { error: 'Failed to create user' };
   }
 
   // Do not write to DB until location is completed
   return {
     user: {
-      id: userId,
+      id: data.user.id,
       email,
       full_name: fullName,
-      password_hash: hashedPassword,
+      password, // store plain password for later sign in
       role,
     },
   };
@@ -48,31 +46,22 @@ export async function signIn(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
 
-  // Query profiles
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('email', email)
-    .single();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
 
-  if (error || !data) {
-    return { error: 'Invalid email or password' };
+  if (error) {
+    return { error: error.message };
   }
 
-  // Check password
-  const isValid = await bcrypt.compare(password, data.password_hash);
-  if (!isValid) {
-    return { error: 'Invalid email or password' };
-  }
-
-  return { user: data };
+  return { user: data.user };
 }
 
 export async function completeSignup(formData: FormData) {
   const userId = formData.get("userId") as string;
   const email = formData.get("email") as string;
   const fullName = formData.get("fullName") as string;
-  const passwordHash = formData.get("passwordHash") as string;
   const role = (formData.get("role") as string) || 'customer';
   const province = formData.get("province") as string;
   const municipality = formData.get("municipality") as string;
@@ -80,28 +69,12 @@ export async function completeSignup(formData: FormData) {
   const streetAddress = formData.get("streetAddress") as string;
   const landmarks = formData.get("landmarks") as string;
 
-  // Double-check duplicate email before write (race-safe)
-  const { data: existing, error: existingErr } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('email', email)
-    .single();
-
-  if (existingErr && existingErr.code !== 'PGRST116') {
-    return { error: `Unable to check email: ${existingErr.message}` };
-  }
-
-  if (existing) {
-    return { error: 'A user with this email already exists' };
-  }
-
   const { data, error } = await supabase
     .from('profiles')
     .insert({
       id: userId,
       email,
       full_name: fullName,
-      password_hash: passwordHash,
       role,
       province,
       municipality,

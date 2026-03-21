@@ -5,11 +5,13 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check, ArrowLeft } from "lucide-react";
 import styles from "../page.module.css";
-import { completeSignup } from "../../actions/auth";
+import { completeSignup, signIn } from "../../actions/auth";
 
 interface PSGCItem { code: string; name: string; }
 
-const PSGC_BASE = "https://psgc.gitlab.io/api";
+const REGION_DEFAULT = "CALABARZON (Region IV-A)";
+const REGION_CODE_DEFAULT = "040000000";
+
 const LeafletPinMap = dynamic(() => import("../../onboard/LeafletMap").then((mod) => mod.LeafletPinMap), { ssr: false });
 
 function LocationForm() {
@@ -23,8 +25,8 @@ function LocationForm() {
   const [mapCoords, setMapCoords] = useState<{ lat: number; lon: number }>({ lat: 14.2819, lon: 120.9106 });
 
   const [form, setForm] = useState({
-    region: "",
-    regionCode: "",
+    region: REGION_DEFAULT,
+    regionCode: REGION_CODE_DEFAULT,
     province: "",
     provinceCode: "",
     city: "",
@@ -42,33 +44,60 @@ function LocationForm() {
   const [done, setDone] = useState(false);
 
   const fetchPSGCResource = async (level: string, code?: string): Promise<PSGCItem[]> => {
-    const url = code ? `${PSGC_BASE}/${level}s/${code}.json` : `${PSGC_BASE}/${level}s.json`;
-    const res = await fetch(url);
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data) ? data : [data];
+    const params = new URLSearchParams({ level });
+    if (code) params.set("code", code);
+
+    try {
+      const res = await fetch(`/api/psgc?${params.toString()}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.value)
+          ? data.value
+          : [];
+      return list.map((item: { code: string; name: string }) => ({ code: item.code, name: item.name }));
+    } catch (err) {
+      console.error(`Failed to fetch ${level}:`, err);
+      return [];
+    }
   };
 
   useEffect(() => {
-    fetchPSGCResource("region").then(setRegions);
+    (async () => {
+      const list = await fetchPSGCResource("regions");
+      setRegions(list);
+    })();
   }, []);
 
   useEffect(() => {
-    if (form.regionCode) {
-      fetchPSGCResource("province", form.regionCode).then(setProvinces);
-    }
+    if (!form.regionCode) return;
+
+    (async () => {
+      const list = await fetchPSGCResource("provinces", form.regionCode);
+      setProvinces(list);
+      setMunicipalities([]);
+      setBarangays([]);
+    })();
   }, [form.regionCode]);
 
   useEffect(() => {
-    if (form.provinceCode) {
-      fetchPSGCResource("municipality", form.provinceCode).then(setMunicipalities);
-    }
+    if (!form.provinceCode) return;
+
+    (async () => {
+      const list = await fetchPSGCResource("cities-municipalities", form.provinceCode);
+      setMunicipalities(list);
+      setBarangays([]);
+    })();
   }, [form.provinceCode]);
 
   useEffect(() => {
-    if (form.cityCode) {
-      fetchPSGCResource("barangay", form.cityCode).then(setBarangays);
-    }
+    if (!form.cityCode) return;
+
+    (async () => {
+      const list = await fetchPSGCResource("barangays", form.cityCode);
+      setBarangays(list);
+    })();
   }, [form.cityCode]);
 
   const set = (k: keyof typeof form, v: string) => {
@@ -78,10 +107,10 @@ function LocationForm() {
 
   const validate = (): boolean => {
     const e: Record<string, string> = {};
-    if (!form.region) e.region = "Please select your region";
-    if (!form.province) e.province = "Please select your province";
-    if (!form.city) e.city = "Please select your municipality/city";
-    if (!form.barangay) e.barangay = "Please select your barangay";
+    if (!form.regionCode) e.region = "Please select your region";
+    if (!form.provinceCode) e.province = "Please select your province";
+    if (!form.cityCode) e.city = "Please select your municipality/city";
+    if (!form.barangayCode) e.barangay = "Please select your barangay";
     if (!form.street.trim()) e.street = "Please enter your street address";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -119,15 +148,42 @@ function LocationForm() {
     if (form.longitude) formData.append('longitude', form.longitude);
 
     const result = await completeSignup(formData);
-    setLoading(false);
-
+    
     if (result?.error) {
+      setLoading(false);
+      console.error("Signup error:", result.error);
       setErrors({ general: result.error });
-    } else {
+      return;
+    }
+
+    // Auto-login after successful signup
+    const signInData = new FormData();
+    signInData.append('email', pendingUser.email);
+    signInData.append('password', pendingUser.password);
+
+    try {
+      const signInResult = await signIn(signInData);
+      
+      if (signInResult?.error) {
+        setLoading(false);
+        console.error("Sign-in error:", signInResult.error);
+        setErrors({ general: `Login failed: ${signInResult.error}` });
+        return;
+      }
+
       window.sessionStorage.removeItem('beavr_signup_data');
       setDone(true);
       await new Promise((r) => setTimeout(r, 700));
-      router.push('/');
+
+      // Redirect based on user role
+      const userRole = signInResult?.user?.role || 'customer';
+      const destination = userRole === 'specialist' ? '/specialist/dashboard' : '/';
+      router.push(destination);
+    } catch (err) {
+      setLoading(false);
+      const message = err instanceof Error ? err.message : "Login failed";
+      console.error("Sign-in exception:", err);
+      setErrors({ general: `Login failed: ${message}` });
     }
   };
 
@@ -140,6 +196,9 @@ function LocationForm() {
     set("cityCode", "");
     set("barangay", "");
     set("barangayCode", "");
+    setProvinces([]);
+    setMunicipalities([]);
+    setBarangays([]);
   };
 
   const onProvinceSelect = (code: string, name: string) => {
@@ -149,6 +208,8 @@ function LocationForm() {
     set("cityCode", "");
     set("barangay", "");
     set("barangayCode", "");
+    setMunicipalities([]);
+    setBarangays([]);
   };
 
   const onCitySelect = (code: string, name: string) => {
@@ -156,6 +217,7 @@ function LocationForm() {
     set("cityCode", code);
     set("barangay", "");
     set("barangayCode", "");
+    setBarangays([]);
   };
 
   const onBarangaySelect = (code: string, name: string) => {
@@ -226,21 +288,21 @@ function LocationForm() {
         </div>
 
         <div className={styles.form}>
-          {/* Region */}
+          {/* Region — default to CALABARZON */}
           <div className={styles.field}>
             <label className={styles.label} htmlFor="region">Region</label>
             <select
               id="region"
               className={`${styles.input} ${errors.region ? styles.inputError : ""}`}
-              value={form.region}
+              value={form.regionCode}
               onChange={(e) => {
-                const selected = regions.find(r => r.name === e.target.value);
+                const selected = regions.find(r => r.code === e.target.value);
                 if (selected) onRegionSelect(selected.code, selected.name);
               }}
             >
               <option value="">Select region</option>
               {regions.map((r) => (
-                <option key={r.code} value={r.name}>{r.name}</option>
+                <option key={r.code} value={r.code}>{r.name}</option>
               ))}
             </select>
             {errors.region && <span className={styles.errMsg}>{errors.region}</span>}
@@ -252,16 +314,16 @@ function LocationForm() {
             <select
               id="province"
               className={`${styles.input} ${errors.province ? styles.inputError : ""}`}
-              value={form.province}
+              value={form.provinceCode}
               onChange={(e) => {
-                const selected = provinces.find(p => p.name === e.target.value);
+                const selected = provinces.find(p => p.code === e.target.value);
                 if (selected) onProvinceSelect(selected.code, selected.name);
               }}
               disabled={!form.regionCode}
             >
               <option value="">Select province</option>
               {provinces.map((p) => (
-                <option key={p.code} value={p.name}>{p.name}</option>
+                <option key={p.code} value={p.code}>{p.name}</option>
               ))}
             </select>
             {errors.province && <span className={styles.errMsg}>{errors.province}</span>}
@@ -273,16 +335,16 @@ function LocationForm() {
             <select
               id="city"
               className={`${styles.input} ${errors.city ? styles.inputError : ""}`}
-              value={form.city}
+              value={form.cityCode}
               onChange={(e) => {
-                const selected = municipalities.find(m => m.name === e.target.value);
+                const selected = municipalities.find(m => m.code === e.target.value);
                 if (selected) onCitySelect(selected.code, selected.name);
               }}
               disabled={!form.provinceCode}
             >
               <option value="">Select municipality/city</option>
               {municipalities.map((m) => (
-                <option key={m.code} value={m.name}>{m.name}</option>
+                <option key={m.code} value={m.code}>{m.name}</option>
               ))}
             </select>
             {errors.city && <span className={styles.errMsg}>{errors.city}</span>}
@@ -294,30 +356,19 @@ function LocationForm() {
             <select
               id="barangay"
               className={`${styles.input} ${errors.barangay ? styles.inputError : ""}`}
-              value={form.barangay}
+              value={form.barangayCode}
               onChange={(e) => {
-                const selected = barangays.find(b => b.name === e.target.value);
+                const selected = barangays.find(b => b.code === e.target.value);
                 if (selected) onBarangaySelect(selected.code, selected.name);
               }}
               disabled={!form.cityCode}
             >
               <option value="">Select barangay</option>
               {barangays.map((b) => (
-                <option key={b.code} value={b.name}>{b.name}</option>
+                <option key={b.code} value={b.code}>{b.name}</option>
               ))}
             </select>
             {errors.barangay && <span className={styles.errMsg}>{errors.barangay}</span>}
-          </div>
-
-          {/* Map location */}
-          <div className={styles.field}>
-            <label className={styles.label}>Pin Location</label>
-            <div style={{ minHeight: 240 }}>
-              <LeafletPinMap current={mapCoords} onCoordsChange={onCoordsChange} />
-            </div>
-            {form.latitude && form.longitude ? (
-              <span className={styles.label}>Lat: {form.latitude}, Lng: {form.longitude}</span>
-            ) : null}
           </div>
 
           {/* Street Address */}
@@ -345,6 +396,14 @@ function LocationForm() {
               value={form.landmarks}
               onChange={(e) => set("landmarks", e.target.value)}
             />
+          </div>
+
+          {/* Map location */}
+          <div className={styles.field}>
+            <label className={styles.label}>Pin Location</label>
+            <div style={{ minHeight: 240 }}>
+              <LeafletPinMap current={mapCoords} onCoordsChange={onCoordsChange} />
+            </div>
           </div>
 
           {errors.general && <span className={styles.errMsg}>{errors.general}</span>}

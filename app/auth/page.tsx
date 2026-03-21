@@ -3,15 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowRight, Check, ArrowLeft } from "lucide-react";
-import { createClient } from "@supabase/supabase-js";
 import styles from "./page.module.css";
-
-/* ------------------------------------------------------------------ */
-/*  Supabase Client                                                     */
-/* ------------------------------------------------------------------ */
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { signIn, signUp } from "../actions/auth";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                               */
@@ -95,50 +88,37 @@ export default function AuthPage() {
     if (!validate()) return;
     setLoading(true);
 
+    const formData = new FormData();
+    formData.append('email', form.email);
+    formData.append('password', form.password);
+    if (mode === 'signup') {
+      formData.append('fullName', form.name);
+      formData.append('role', 'customer');
+    }
+
     try {
-      if (mode === "signup") {
-        // Sign up new user
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: form.email,
-          password: form.password,
-          options: {
-            data: {
-              full_name: form.name,
-            },
-          },
-        });
+      const result = mode === 'signin' ? await signIn(formData) : await signUp(formData);
 
-        if (authError) throw authError;
+      if (result && 'error' in result && result.error) {
+        setErrors({ email: result.error });
+        setLoading(false);
+        return;
+      }
 
-        // Create profile entry
-        if (authData.user) {
-          const { error: profileError } = await supabase
-            .from("profiles")
-            .insert({
-              id: authData.user.id,
-              full_name: form.name,
-              email: form.email,
-              created_at: new Date().toISOString(),
-            });
-
-          if (profileError) throw profileError;
-        }
-
+      if (mode === 'signin' && result && 'user' in result && result.user) {
         setDone(true);
         await new Promise((r) => setTimeout(r, 700));
-        router.push("/");
-      } else {
-        // Sign in existing user
-        const { error: authError } = await supabase.auth.signInWithPassword({
-          email: form.email,
-          password: form.password,
-        });
+        const destination = result.user.role === 'specialist' ? '/specialist/dashboard' : '/';
+        router.push(destination);
+        return;
+      }
 
-        if (authError) throw authError;
-
+      if (mode === 'signup' && result && 'user' in result && result.user) {
+        const signupData = { ...result.user, password: form.password };
+        window.sessionStorage.setItem('beavr_signup_data', JSON.stringify(signupData));
         setDone(true);
         await new Promise((r) => setTimeout(r, 700));
-        router.push("/");
+        router.push('/auth/location');
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Authentication failed";

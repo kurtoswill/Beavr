@@ -127,8 +127,11 @@ export default function LandingPage() {
         // Reverse geocode to get address
         try {
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+            { headers: { "Accept-Language": "en" } }
           );
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          
           const data = await response.json();
           
           setLocation({
