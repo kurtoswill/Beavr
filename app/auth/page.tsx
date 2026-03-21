@@ -97,31 +97,21 @@ export default function AuthPage() {
 
     try {
       if (mode === "signup") {
-        // Sign up new user
+        // Sign up new user - profile will be created by trigger
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: form.email,
           password: form.password,
           options: {
             data: {
               full_name: form.name,
+              role: 'customer',
             },
           },
         });
 
-        if (authError) throw authError;
-
-        // Create profile entry
-        if (authData.user) {
-          const { error: profileError } = await supabase
-            .from("profiles")
-            .insert({
-              id: authData.user.id,
-              full_name: form.name,
-              email: form.email,
-              created_at: new Date().toISOString(),
-            });
-
-          if (profileError) throw profileError;
+        if (authError) {
+          console.error("Signup error:", authError);
+          throw new Error(authError.message || "Failed to create account");
         }
 
         setDone(true);
@@ -134,7 +124,10 @@ export default function AuthPage() {
           password: form.password,
         });
 
-        if (authError) throw authError;
+        if (authError) {
+          console.error("Signin error:", authError);
+          throw new Error(authError.message || "Invalid email or password");
+        }
 
         setDone(true);
         await new Promise((r) => setTimeout(r, 700));

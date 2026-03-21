@@ -92,11 +92,16 @@ export default function LandingPage() {
         if (user) {
           setIsLoggedIn(true);
           // Get user's name from profile
-          const { data: profile } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from("profiles")
             .select("full_name")
             .eq("id", user.id)
             .single();
+          
+          if (profileError) {
+            console.warn("Could not fetch profile:", profileError);
+          }
+          
           setUserName(profile?.full_name || user.email?.split("@")[0] || "User");
         } else {
           setIsLoggedIn(false);
