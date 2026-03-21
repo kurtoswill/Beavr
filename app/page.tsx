@@ -92,11 +92,16 @@ export default function LandingPage() {
         if (user) {
           setIsLoggedIn(true);
           // Get user's name from profile
-          const { data: profile } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from("profiles")
             .select("full_name")
             .eq("id", user.id)
             .single();
+          
+          if (profileError) {
+            console.warn("Could not fetch profile:", profileError);
+          }
+          
           setUserName(profile?.full_name || user.email?.split("@")[0] || "User");
         } else {
           setIsLoggedIn(false);
@@ -171,46 +176,50 @@ export default function LandingPage() {
     callback();
   };
 
-  const handleFindSpecialist = async () => {
-    checkAuthAndProceed(async () => {
-      const newErrors: { query?: string; description?: string } = {};
-      if (!query.trim()) newErrors.query = "Please tell us what you need.";
-      if (!description.trim())
-        newErrors.description = "Please describe the problem.";
+  const handleFindSpecialist = () => {
+    // Check auth first - redirect if not logged in
+    if (!isLoggedIn) {
+      router.push("/auth");
+      return;
+    }
 
-      if (Object.keys(newErrors).length) {
-        setErrors(newErrors);
+    const newErrors: { query?: string; description?: string } = {};
+    if (!query.trim()) newErrors.query = "Please tell us what you need.";
+    if (!description.trim())
+      newErrors.description = "Please describe the problem.";
+
+    if (Object.keys(newErrors).length) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setErrors({});
+    setIsLoading(true);
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) {
+        alert("Please sign in to create a job");
+        router.push("/auth");
         return;
       }
 
-      setErrors({});
-      setIsLoading(true);
-
-      try {
-        // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          alert("Please sign in to create a job");
-          router.push("/auth");
-          return;
-        }
-
-        // Step 1: Upload all images
-        const imageUrls = await Promise.all(
-          files.map((f) => uploadImage(f.file))
-        );
-
-        // Step 2: Create job
-        const jobId = await createJob(imageUrls, user.id);
-
-        // Step 3: Redirect to tracking page
-        router.push(`/tracking/${jobId}`);
-      } catch (error) {
-        console.error("Error creating job:", error);
-        alert("Failed to create job. Please try again.");
-      } finally {
-        setIsLoading(false);
-      }
+      // Step 1: Upload all images
+      Promise.all(files.map((f) => uploadImage(f.file)))
+        .then((imageUrls) => {
+          // Step 2: Create job
+          return createJob(imageUrls, user.id);
+        })
+        .then((jobId) => {
+          // Step 3: Redirect to tracking page
+          router.push(`/tracking/${jobId}`);
+        })
+        .catch((error) => {
+          console.error("Error creating job:", error);
+          alert("Failed to create job. Please try again.");
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
     });
   };
 
@@ -519,10 +528,9 @@ export default function LandingPage() {
         <button
           className={styles.ctaPrimary}
           onClick={handleFindSpecialist}
-          disabled={isLoading || !isLoggedIn}
-          title={!isLoggedIn ? "Please sign in to find a specialist" : ""}
+          disabled={isLoading}
         >
-          {isLoading ? "Creating job..." : isLoggedIn ? "Find a specialist" : "Sign in to continue"}
+          {isLoading ? "Creating job..." : "Find a specialist"}
         </button>
 
         {/* Divider */}
@@ -535,11 +543,15 @@ export default function LandingPage() {
         {/* Secondary CTA */}
         <button
           className={styles.ctaSecondary}
-          onClick={() => checkAuthAndProceed(() => router.push("/onboard"))}
-          disabled={!isLoggedIn}
-          title={!isLoggedIn ? "Please sign in to become a specialist" : ""}
+          onClick={() => {
+            if (!isLoggedIn) {
+              router.push("/auth");
+            } else {
+              router.push("/onboard");
+            }
+          }}
         >
-          {isLoggedIn ? "Become a specialist" : "Sign in to continue"}
+          Become a specialist
         </button>
       </section>
     </main>
