@@ -138,7 +138,9 @@ export default function AuthPage() {
 
         if (authError) {
           console.error("Signin error:", authError);
-          throw new Error(authError.message || "Invalid email or password");
+          setErrors({ email: "Invalid email or password. Please try again." });
+          setLoading(false);
+          return;
         }
 
         // Check if user is a specialist
@@ -164,9 +166,11 @@ export default function AuthPage() {
       }
     } catch (error) {
       console.error("Auth error:", error);
-      const message = error instanceof Error ? error.message : "Authentication failed";
-      setErrors({ email: message });
-    } finally {
+      // Error already handled above for signin, this catches any other unexpected errors
+      if (mode === "signup") {
+        const message = error instanceof Error ? error.message : "Authentication failed";
+        setErrors({ email: message });
+      }
       setLoading(false);
     }
   };
