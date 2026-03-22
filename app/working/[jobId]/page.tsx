@@ -100,7 +100,6 @@ export default function WorkingPage() {
         const { job: jobData } = await jobRes.json();
         setJob(jobData);
 
-        // Sync local stage with DB status
         if (jobData.status === "completed") setStage("done");
 
         if (jobData.specialist_id) {
@@ -123,9 +122,7 @@ export default function WorkingPage() {
     fetchData();
   }, [jobId]);
 
-  // 2. Real-time Status Polling - Updates when job is completed
   useEffect(() => {
-    // If we are already showing receipt (payment done), stop polling
     if (showReceipt) return;
 
     const interval = setInterval(async () => {
@@ -134,7 +131,6 @@ export default function WorkingPage() {
         const data = await res.json();
         const updatedStatus = data.job.status as string;
 
-        // If job is completed and we're working, move to done
         if (updatedStatus === "completed" && stage === "working") {
           setStage("done");
         }
@@ -146,31 +142,32 @@ export default function WorkingPage() {
     return () => clearInterval(interval);
   }, [jobId, stage, showReceipt]);
 
-  // 3. Simple Timer
   useEffect(() => {
     if (stage !== "working") return;
     const timer = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(timer);
   }, [stage]);
 
-  // 4. Handle Payment Logic - FIXED: Now sends all required fields
   const handlePay = async () => {
     if (!job || !jobId) return;
-    
+
     setProcessingPayment(true);
     try {
-      // Get current user ID from Supabase auth (more reliable than localStorage for thesis)
       const { data: { user } } = await supabase.auth.getUser();
-      const customerId = user?.id || job.customer_id;
+      const customerId = user?.id;
+
+      if (!customerId) {
+        alert("Please sign in to complete payment");
+        setProcessingPayment(false);
+        return;
+      }
 
       const payload = {
         job_id: jobId,
         payment_method: "GCash",
-        amount: Number(rate), // Ensure it's a number
+        amount: Number(rate),
         customer_id: customerId,
       };
-
-      console.log("Sending payment payload:", payload);
 
       const response = await fetch("/api/payments", {
         method: "POST",

@@ -11,7 +11,6 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const { job_id, payment_method, amount, customer_id } = body;
 
-        // 1. Basic validation
         if (!job_id || !payment_method || !amount || !customer_id) {
             return NextResponse.json(
                 { error: 'Missing required fields' },
@@ -19,7 +18,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // 2. Get job details
         const { data: job, error: jobError } = await supabase
             .from('jobs')
             .select('id, customer_id, specialist_id, status')
@@ -30,12 +28,10 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Job not found' }, { status: 404 });
         }
 
-        // 3. Verify Customer
-        if (job.customer_id !== customer_id) {
+        if (job.customer_id && job.customer_id !== customer_id) {
             return NextResponse.json({ error: 'Unauthorized: ID mismatch' }, { status: 403 });
         }
 
-        // 4. Get the Worker's ID and years experience
         const { data: specialist, error: specError } = await supabase
             .from('specialists')
             .select('user_id, years_exp')
@@ -46,9 +42,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Specialist record not found' }, { status: 404 });
         }
 
-        // 5. LOGIC: Process Wallet Update (Improved with Upsert)
         if (payment_method === 'GCash') {
-            // First, try to get the current balance
             const { data: workerDetail } = await supabase
                 .from('worker_details')
                 .select('wallet_balance')
@@ -58,8 +52,6 @@ export async function POST(request: NextRequest) {
             const currentBalance = workerDetail?.wallet_balance || 0;
             const newBalance = currentBalance + Number(amount);
 
-            // Use UPSERT: This creates the row if it's missing, or updates it if it exists
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error: walletError } = await (supabase as any)
                 .from('worker_details')
                 .upsert({
@@ -75,8 +67,6 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // 6. Log payment confirmation (job status stays 'completed')
-        // Payment is tracked separately - wallet update above confirms the transfer
         console.log('Payment processed successfully for job:', job_id);
 
         return NextResponse.json({
