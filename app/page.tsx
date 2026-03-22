@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
 import {
   MapPin,
   ChevronDown,
@@ -20,11 +20,8 @@ import ServiceChip from "@/components/ServiceChip/ServiceChip";
 import styles from "./page.module.css";
 
 /* ------------------------------------------------------------------ */
-/*  Supabase Client                                                     */
+/*  Supabase — imported from shared singleton @ lib/supabase.ts        */
 /* ------------------------------------------------------------------ */
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 /* ------------------------------------------------------------------ */
 /*  Data                                                                */
@@ -66,7 +63,8 @@ export default function LandingPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  
+
+  const [userId, setUserId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<UploadedFile[]>([]);
@@ -83,6 +81,9 @@ export default function LandingPage() {
   const [isLocating, setIsLocating] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
 
+  // ── NEW: track the job the customer just posted so we can listen to it ──
+  const [pendingJobId, setPendingJobId] = useState<string | null>(null);
+
   // Load cached location on mount
   useEffect(() => {
     const cached = localStorage.getItem("beavr_location");
@@ -97,26 +98,51 @@ export default function LandingPage() {
     }
   }, []);
 
-  // Check auth status on mount
+  // Check auth status on mount + look up any active pending job
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        
+
         if (user) {
           setIsLoggedIn(true);
-          // Get user's name from profile
           const { data: profile, error: profileError } = await supabase
             .from("profiles")
             .select("full_name")
             .eq("id", user.id)
-            .single();
-          
+            .single() as { data: { full_name: string } | null; error: unknown };
+
           if (profileError) {
             console.warn("Could not fetch profile:", profileError);
           }
-          
+
           setUserName(profile?.full_name || user.email?.split("@")[0] || "User");
+
+          // ── Look up any job this customer posted that is still pending or
+          //    bid_accepted. If found, set pendingJobId so the realtime listener
+          //    below kicks in even when the customer navigated back to home. ──
+          const { data: activeJob } = await supabase
+            .from("jobs")
+            .select("id, status")
+            .eq("customer_id", user.id)
+            .in("status", ["pending", "bid_accepted", "on_the_way"])
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single() as { data: { id: string; status: string } | null; error: unknown };
+
+          if (activeJob) {
+            console.log("[Landing] Found active job:", activeJob.id, activeJob.status);
+            // If already accepted while they were away, redirect immediately
+            if (
+              activeJob.status === "bid_accepted" ||
+              activeJob.status === "on_the_way"
+            ) {
+              router.push(`/tracking/${activeJob.id}`);
+              return;
+            }
+            // Otherwise subscribe and wait
+            setPendingJobId(activeJob.id);
+          }
         } else {
           setIsLoggedIn(false);
         }
@@ -129,11 +155,10 @@ export default function LandingPage() {
     };
 
     checkAuth();
-  }, []);
+  }, [router]);
 
   // Auto-detect location on mount
   useEffect(() => {
-    // If we already have cached location, skip auto-detection
     const cached = localStorage.getItem("beavr_location");
     if (cached) {
       try {
@@ -158,22 +183,14 @@ export default function LandingPage() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-
-        // Reverse geocode to get address
         try {
           const response = await fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-            {
-              headers: { "Accept-Language": "en" },
-              signal: controller.signal,
-            },
+            { headers: { "Accept-Language": "en" }, signal: controller.signal },
           );
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
           const data = await response.json();
-
           const locationData = {
             latitude,
             longitude,
@@ -182,22 +199,15 @@ export default function LandingPage() {
               data.address?.suburb ||
               data.address?.city ||
               "Your location",
-            province:
-              data.address?.state || data.address?.province || "Cavite",
+            province: data.address?.state || data.address?.province || "Cavite",
             city: data.address?.city || data.address?.municipality || "",
             barangay: data.address?.barangay || "",
           };
-
           setLocation(locationData);
-
-          // Save to localStorage for onboarding page
           localStorage.setItem("beavr_location", JSON.stringify(locationData));
         } catch (error) {
-          if (error instanceof Error && error.name === "AbortError") {
-            return;
-          }
+          if (error instanceof Error && error.name === "AbortError") return;
           console.error("Reverse geocoding error:", error);
-          // Still save coordinates even if reverse geocoding fails
           const locationData = {
             latitude,
             longitude,
@@ -213,38 +223,76 @@ export default function LandingPage() {
       },
       (error) => {
         let message = "Unable to get your location";
-        if (error.code === 1) {
-          message = "Location permission denied. Please allow location access in your browser settings.";
-        } else if (error.code === 2) {
-          message = "Location unavailable. Please check your device settings.";
-        } else if (error.code === 3) {
-          message = "Location request timed out. Please try again.";
-        }
+        if (error.code === 1) message = "Location permission denied. Please allow location access in your browser settings.";
+        else if (error.code === 2) message = "Location unavailable. Please check your device settings.";
+        else if (error.code === 3) message = "Location request timed out. Please try again.";
         setLocationError(message);
         console.error("Geolocation error:", error);
         setIsLocating(false);
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 300000, // 5 minutes
-      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
     );
 
     return () => controller.abort();
   }, []);
 
-  // Check auth before finding specialist
-  const checkAuthAndProceed = (callback: () => void) => {
-    if (!isLoggedIn) {
-      router.push("/auth");
-      return;
-    }
-    callback();
-  };
+  // ── Realtime listener — sets auth token to keep connection alive ───────────
+  useEffect(() => {
+    if (!pendingJobId) return;
+
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let isDestroyed = false;
+
+    const subscribe = async () => {
+      if (isDestroyed) return;
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          await supabase.realtime.setAuth(session.access_token);
+        }
+      } catch (err) {
+        console.warn("[Realtime] Could not set auth token:", err);
+      }
+
+      channel = supabase
+        .channel(`landing-job-${pendingJobId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "jobs",
+            filter: `id=eq.${pendingJobId}`,
+          },
+          (payload) => {
+            const updated = payload.new as { id: string; status: string };
+            console.log("[Realtime] Job status on landing:", updated.status);
+
+            if (
+              updated.status === "bid_accepted" ||
+              updated.status === "on_the_way" ||
+              updated.status === "working"
+            ) {
+              router.push(`/tracking/${pendingJobId}`);
+            }
+          }
+        )
+        .subscribe((subStatus) => {
+          console.log("[Realtime] Landing subscription status:", subStatus);
+        });
+    };
+
+    subscribe();
+
+    return () => {
+      isDestroyed = true;
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [pendingJobId, router]);
+  // ────────────────────────────────────────────────────────────────────────────
 
   const handleFindSpecialist = () => {
-    // Check auth first - redirect if not logged in
     if (!isLoggedIn) {
       router.push("/auth");
       return;
@@ -252,8 +300,7 @@ export default function LandingPage() {
 
     const newErrors: { query?: string; description?: string } = {};
     if (!query.trim()) newErrors.query = "Please tell us what you need.";
-    if (!description.trim())
-      newErrors.description = "Please describe the problem.";
+    if (!description.trim()) newErrors.description = "Please describe the problem.";
 
     if (Object.keys(newErrors).length) {
       setErrors(newErrors);
@@ -270,14 +317,12 @@ export default function LandingPage() {
         return;
       }
 
-      // Step 1: Upload all images
       Promise.all(files.map((f) => uploadImage(f.file)))
-        .then((imageUrls) => {
-          // Step 2: Create job
-          return createJob(imageUrls, user.id);
-        })
+        .then((imageUrls) => createJob(imageUrls, user.id))
         .then((jobId) => {
-          // Step 3: Redirect to tracking page
+          // ── CHANGED: set pendingJobId to start the realtime listener,
+          //             then redirect to the tracking page as before ──
+          setPendingJobId(jobId);
           router.push(`/tracking/${jobId}`);
         })
         .catch((error) => {
@@ -302,40 +347,32 @@ export default function LandingPage() {
     });
 
     const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "Failed to upload image");
-    }
-
+    if (!response.ok) throw new Error(data.error || "Failed to upload image");
     return data.url;
   };
 
   /* ---- Create job via API ---- */
   const createJob = async (imageUrls: string[], customerId: string): Promise<string> => {
-    // Fetch customer's profile location (set during signup/onboarding)
     let customerProfile = null;
     try {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('latitude, longitude')
-        .eq('id', customerId)
-        .single();
+        .from("profiles")
+        .select("latitude, longitude")
+        .eq("id", customerId)
+        .single() as { data: { latitude: number; longitude: number } | null; error: unknown };
 
       if (!error && data) {
         customerProfile = data;
-        console.log('Using customer profile location:', customerProfile);
       } else {
-        console.warn('Could not fetch profile location, using fallback:', error);
+        console.warn("Could not fetch profile location, using fallback:", error);
       }
     } catch (err) {
-      console.warn('Error fetching profile location:', err);
+      console.warn("Error fetching profile location:", err);
     }
 
     const response = await fetch("/api/jobs", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         customer_id: customerId,
         profession: query || "General Handyman",
@@ -351,11 +388,7 @@ export default function LandingPage() {
     });
 
     const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "Failed to create job");
-    }
-
+    if (!response.ok) throw new Error(data.error || "Failed to create job");
     return data.job.id;
   };
 
@@ -364,11 +397,7 @@ export default function LandingPage() {
     if (!incoming) return;
     const next: UploadedFile[] = Array.from(incoming)
       .filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"))
-      .map((f) => ({
-        name: f.name,
-        preview: URL.createObjectURL(f),
-        file: f,
-      }));
+      .map((f) => ({ name: f.name, preview: URL.createObjectURL(f), file: f }));
     setFiles((prev) => [...prev, ...next].slice(0, 6));
   };
 
@@ -408,20 +437,13 @@ export default function LandingPage() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-
         try {
           const response = await fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-            {
-              headers: { "Accept-Language": "en" },
-              signal: controller.signal,
-            },
+            { headers: { "Accept-Language": "en" }, signal: controller.signal },
           );
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const data = await response.json();
-
           const locationData = {
             latitude,
             longitude,
@@ -430,20 +452,15 @@ export default function LandingPage() {
               data.address?.suburb ||
               data.address?.city ||
               "Your location",
-            province:
-              data.address?.state || data.address?.province || "Cavite",
+            province: data.address?.state || data.address?.province || "Cavite",
             city: data.address?.city || data.address?.municipality || "",
             barangay: data.address?.barangay || "",
           };
-
           setLocation(locationData);
           localStorage.setItem("beavr_location", JSON.stringify(locationData));
         } catch (error) {
-          if (error instanceof Error && error.name === "AbortError") {
-            return;
-          }
+          if (error instanceof Error && error.name === "AbortError") return;
           console.error("Reverse geocoding error:", error);
-          // Still save coordinates even if reverse geocoding fails
           const locationData = {
             latitude,
             longitude,
@@ -500,7 +517,7 @@ export default function LandingPage() {
               Sign in
             </button>
           )}
-          
+
           <button
             className={styles.locationPill}
             onClick={requestLocation}
@@ -585,22 +602,15 @@ export default function LandingPage() {
 
         {/* Upload drop zone */}
         <div
-          className={`${styles.uploadZone} ${
-            dragging ? styles.uploadZoneDragging : ""
-          }`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
+          className={`${styles.uploadZone} ${dragging ? styles.uploadZoneDragging : ""}`}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
           role="button"
           tabIndex={0}
           aria-label="Upload photos or videos"
-          onKeyDown={(e) =>
-            e.key === "Enter" && fileInputRef.current?.click()
-          }
+          onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
         >
           <input
             ref={fileInputRef}
@@ -612,11 +622,7 @@ export default function LandingPage() {
           />
           {files.length === 0 ? (
             <div className={styles.uploadPlaceholder}>
-              <CloudUpload
-                size={32}
-                strokeWidth={1.5}
-                className={styles.uploadIcon}
-              />
+              <CloudUpload size={32} strokeWidth={1.5} className={styles.uploadIcon} />
               <span className={styles.uploadLabel}>
                 Upload photos or videos{" "}
                 <span className={styles.optionalTag}>(optional)</span>
@@ -626,15 +632,11 @@ export default function LandingPage() {
             <div className={styles.uploadPreviews}>
               {files.map((f, i) => (
                 <div key={i} className={styles.previewThumb}>
-                  {/* ✅ Use regular img tag for preview */}
                   <img src={f.preview} alt={f.name} />
                   <button
                     className={styles.previewRemove}
                     aria-label={`Remove ${f.name}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeFile(i);
-                    }}
+                    onClick={(e) => { e.stopPropagation(); removeFile(i); }}
                   >
                     <X size={10} strokeWidth={3} />
                   </button>

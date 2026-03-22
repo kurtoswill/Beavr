@@ -20,6 +20,7 @@ interface Job {
 
 interface Specialist {
   id: string;
+  user_id?: string;
   full_name: string;
   avatar_url: string;
   profession: string;
@@ -116,7 +117,7 @@ export default function RateSpecialistPage() {
         body: JSON.stringify({
           job_id: jobId,
           reviewer_id: job.customer_id,
-          reviewee_id: specialist.id,
+          reviewee_id: specialist.user_id || specialist.id,
           rating_value: rating,
           comment: comment.trim() || null,
           photos: null,

@@ -27,8 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert review into database
-    const { data, error } = await supabase
-      .from('reviews')
+    const { data, error } = await (supabase.from('reviews') as any)
       .insert({
         job_id,
         reviewer_id,
@@ -48,22 +47,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update specialist's rating average
+    // Update specialist's rating average in BOTH profiles and specialists tables
     const { data: reviews, error: reviewsError } = await supabase
       .from('reviews')
       .select('rating_value')
-      .eq('reviewee_id', reviewee_id);
+      .eq('reviewee_id', reviewee_id) as { data: { rating_value: number }[] | null; error: any };
 
     if (!reviewsError && reviews && reviews.length > 0) {
       const avgRating = reviews.reduce((sum, r) => sum + r.rating_value, 0) / reviews.length;
       
-      const { error: updateError } = await supabase
-        .from('profiles')
+      // Update profiles table
+      const { error: profileUpdateError } = await (supabase.from('profiles') as any)
         .update({ rating_avg: avgRating })
         .eq('id', reviewee_id);
       
-      if (updateError) {
-        console.error('Failed to update specialist rating:', updateError);
+      if (profileUpdateError) {
+        console.error('Failed to update profile rating:', profileUpdateError);
+      }
+
+      // Update specialists table with rating_avg and total_reviews count
+      const { error: specUpdateError } = await (supabase.from('specialists') as any)
+        .update({ 
+          rating_avg: avgRating,
+          total_reviews: reviews.length 
+        })
+        .eq('user_id', reviewee_id);
+      
+      if (specUpdateError) {
+        console.error('Failed to update specialist rating:', specUpdateError);
       }
     }
 
@@ -100,7 +111,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase
       .from('reviews')
       .select('*')
-      .eq(reviewee_id ? 'reviewee_id' : 'job_id', reviewee_id || job_id)
+      .eq(reviewee_id ? 'reviewee_id' : 'job_id', reviewee_id || job_id!)
       .order('created_at', { ascending: false })
       .limit(parseInt(limit));
 

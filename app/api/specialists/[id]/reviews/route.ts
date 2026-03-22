@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
+type ReviewRow = {
+  id: string;
+  rating: number | null;
+  comment: string | null;
+  photos: string[] | null;
+  created_at: string;
+  customers: {
+    id: string;
+    full_name: string | null;
+    avatar_url: string | null;
+  } | null;
+};
+
 // ============================================================
 // GET - Get reviews for a specialist
 // ============================================================
@@ -18,22 +31,19 @@ export async function GET(
       );
     }
 
-    // Fetch reviews for this specialist
     const { data, error } = await supabase
       .from("reviews")
-      .select(
-        `
+      .select(`
         *,
         customers:reviewer_id (
           id,
           full_name,
           avatar_url
         )
-      `
-      )
+      `)
       .eq("reviewee_id", id)
       .order("created_at", { ascending: false })
-      .limit(10);
+      .limit(10) as { data: ReviewRow[] | null; error: { message: string } | null };
 
     if (error) {
       console.error("Supabase error fetching reviews:", error);
@@ -43,7 +53,6 @@ export async function GET(
       );
     }
 
-    // Transform reviews to match expected format
     const reviews = (data || []).map((review) => ({
       id: review.id,
       name: review.customers?.full_name || "Anonymous",

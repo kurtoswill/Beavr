@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
       .from("profiles")
       .select("id")
       .eq("email", email)
-      .single();
+      .single() as { data: { id: string } | null; error: any };
 
     if (profileFindError || !profileData) {
       return NextResponse.json(
@@ -129,8 +130,7 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join(" ");
 
-    const { error: profileError } = await supabase
-      .from("profiles")
+    const { error: profileError } = await (supabase.from("profiles") as any)
       .upsert(
         {
           id: userId,
@@ -165,8 +165,7 @@ export async function POST(request: NextRequest) {
     // ================================================================
     // STEP 3: Insert into specialists Table
     // ================================================================
-    const { data: specialistData, error: specialistError } = await supabase
-      .from("specialists")
+    const { data: specialistData, error: specialistError } = await (supabase.from("specialists") as any)
       .insert({
         user_id: userId,
         profession: role,
@@ -198,10 +197,37 @@ export async function POST(request: NextRequest) {
     const workerId = specialistData.id;
 
     // ================================================================
-    // STEP 4: Insert into verifications Table
+    // STEP 4: Initialize worker_details Record for Wallet
     // ================================================================
-    const { data: verificationData, error: verificationError } = await supabase
-      .from("verifications")
+    const { error: workerDetailsError } = await (supabase.from("worker_details") as any)
+      .upsert(
+        {
+          id: userId,
+          wallet_balance: 0,
+        },
+        { onConflict: "id" }
+      )
+      .select()
+      .single();
+
+    if (workerDetailsError) {
+      console.log("Worker details insert error:", workerDetailsError);
+      errors.push(
+        `Failed to create wallet record: ${workerDetailsError.message}`,
+      );
+      return NextResponse.json(
+        {
+          error: "Database error. No changes committed.",
+          details: errors,
+        },
+        { status: 500 },
+      );
+    }
+
+    // ================================================================
+    // STEP 5: Insert into verifications Table
+    // ================================================================
+    const { data: verificationData, error: verificationError } = await (supabase.from("verifications") as any)
       .insert({
         worker_id: workerId,
         id_type: idType,
@@ -228,11 +254,10 @@ export async function POST(request: NextRequest) {
     }
 
     // ================================================================
-    // STEP 5: Update profile role to 'worker'
+    // STEP 6: Update profile role to 'worker'
     // ================================================================
     // When a customer applies to be a specialist, set their role to 'worker'.
-    const { error: roleError } = await supabase
-      .from("profiles")
+    const { error: roleError } = await (supabase.from("profiles") as any)
       .update({ role: "worker" })
       .eq("id", userId);
 

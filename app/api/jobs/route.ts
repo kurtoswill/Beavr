@@ -32,8 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert job into database
-    const { data: jobData, error } = await supabase
-      .from('jobs')
+    const { data: jobData, error } = await (supabase.from('jobs') as any)
       .insert({
         customer_id,
         profession,

@@ -19,8 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert quote into database
-    const { data, error } = await supabase
-      .from('quotes')
+    const { data, error } = await (supabase.from('quotes') as any)
       .insert({
         job_id,
         worker_id,

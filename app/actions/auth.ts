@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use server";
 
 import { supabase } from "@/lib/supabase";
@@ -69,8 +70,7 @@ export async function completeSignup(formData: FormData) {
   const streetAddress = formData.get("streetAddress") as string;
   const landmarks = formData.get("landmarks") as string;
 
-  const { data, error } = await supabase
-    .from('profiles')
+  const { data, error } = await (supabase.from('profiles') as any)
     .insert({
       id: userId,
       email,
@@ -101,8 +101,7 @@ export async function updateLocation(formData: FormData) {
   const streetAddress = formData.get("streetAddress") as string;
   const landmarks = formData.get("landmarks") as string;
 
-  const { error } = await supabase
-    .from('profiles')
+  const { error } = await (supabase.from('profiles') as any)
     .update({
       province,
       municipality,

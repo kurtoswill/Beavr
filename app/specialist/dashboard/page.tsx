@@ -1,7 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
 import {
   Zap,
   Wallet,
@@ -19,18 +19,11 @@ import {
 } from "lucide-react";
 import styles from "./page.module.css";
 
-/* ------------------------------------------------------------------ */
-/*  Supabase Client                                                     */
-/* ------------------------------------------------------------------ */
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { supabase } from "@/lib/supabase";
 
 /* ------------------------------------------------------------------ */
 /*  Types - From Database Schema                                        */
 /* ------------------------------------------------------------------ */
-
-// Job from Supabase
 interface Job {
   id: string;
   customer_id: string;
@@ -49,7 +42,6 @@ interface Job {
   accepted_at?: string;
 }
 
-// Quote from Supabase
 interface Quote {
   id: string;
   job_id: string;
@@ -60,7 +52,6 @@ interface Quote {
   created_at: string;
 }
 
-// Specialist from Supabase
 interface Specialist {
   id: string;
   user_id: string;
@@ -78,7 +69,6 @@ interface Specialist {
   };
 }
 
-// Profile from Supabase
 interface Profile {
   id: string;
   full_name?: string;
@@ -118,6 +108,7 @@ interface CompletedJob {
 
 interface SpecialistProfile {
   id: string;
+  user_id: string; // ← added: store user_id alongside row id
   name: string;
   avatar: string;
   role: string;
@@ -130,30 +121,9 @@ interface SpecialistProfile {
   responseRate: number;
 }
 
-// API Response types
 interface JobsResponse {
   success: boolean;
   jobs?: Job[];
-  error?: string;
-}
-
-interface SpecialistResponse {
-  success: boolean;
-  specialists?: Specialist[];
-  specialist?: Specialist;
-  error?: string;
-}
-
-interface QuotesResponse {
-  success: boolean;
-  quotes?: Quote[];
-  quote?: Quote;
-  error?: string;
-}
-
-interface ProfilesResponse {
-  success: boolean;
-  profile?: Profile;
   error?: string;
 }
 
@@ -161,7 +131,6 @@ interface ProfilesResponse {
 /*  Helper: Map job from API to JobOffer format                        */
 /* ------------------------------------------------------------------ */
 async function mapJobToOffer(job: Job): Promise<JobOffer> {
-  // Fetch customer profile
   let customerName = "Customer";
   let customerAvatar = "https://i.pravatar.cc/80?img=5";
 
@@ -170,7 +139,7 @@ async function mapJobToOffer(job: Job): Promise<JobOffer> {
       .from("profiles")
       .select("full_name, avatar_url")
       .eq("id", job.customer_id)
-      .single();
+      .single() as { data: { full_name: string; avatar_url: string } | null; error: unknown };
 
     if (profileData) {
       customerName = profileData.full_name || "Customer";
@@ -260,27 +229,17 @@ function JobOfferModal({
         aria-modal="true"
         aria-label="Job offer details"
       >
-        <button
-          className={styles.modalClose}
-          onClick={onClose}
-          aria-label="Close"
-        >
+        <button className={styles.modalClose} onClick={onClose} aria-label="Close">
           <X size={18} strokeWidth={2.5} />
         </button>
         <div className={styles.modalHandle} aria-hidden />
         <div className={styles.modalClient}>
-          <img
-            src={offer.clientAvatar}
-            alt={offer.clientName}
-            className={styles.modalClientAvatar}
-          />
+          <img src={offer.clientAvatar} alt={offer.clientName} className={styles.modalClientAvatar} />
           <div className={styles.modalClientInfo}>
             <span className={styles.modalClientName}>{offer.clientName}</span>
             <div className={styles.modalClientMeta}>
               <CalendarDays size={11} strokeWidth={2} />
-              <span>
-                {offer.date} · {offer.time}
-              </span>
+              <span>{offer.date} · {offer.time}</span>
             </div>
           </div>
           <div className={styles.serviceChip}>
@@ -291,16 +250,10 @@ function JobOfferModal({
         <div className={styles.modalDivider} />
         <div className={styles.modalDetails}>
           <div className={styles.modalDetailRow}>
-            <Navigation
-              size={14}
-              strokeWidth={2}
-              className={styles.modalDetailIcon}
-            />
+            <Navigation size={14} strokeWidth={2} className={styles.modalDetailIcon} />
             <div>
               <span className={styles.modalDetailLabel}>Distance</span>
-              <span className={styles.modalDetailValue}>
-                {offer.distance} · {offer.eta} away
-              </span>
+              <span className={styles.modalDetailValue}>{offer.distance} · {offer.eta} away</span>
             </div>
           </div>
         </div>
@@ -312,12 +265,7 @@ function JobOfferModal({
         {offer.images && offer.images.length > 0 && (
           <div className={styles.modalImages}>
             {offer.images.map((src: string, i: number) => (
-              <img
-                key={i}
-                src={src}
-                alt={`Photo ${i + 1}`}
-                className={styles.modalImage}
-              />
+              <img key={i} src={src} alt={`Photo ${i + 1}`} className={styles.modalImage} />
             ))}
           </div>
         )}
@@ -325,8 +273,7 @@ function JobOfferModal({
         <div className={styles.modalSection}>
           <span className={styles.modalSectionTitle}>Your rate</span>
           <p className={styles.modalRateHint}>
-            Suggested: ₱{offer.suggestedRate.toLocaleString()}. Set your own
-            price for this job.
+            Suggested: ₱{offer.suggestedRate.toLocaleString()}. Set your own price for this job.
           </p>
           <div className={styles.rateInputWrap}>
             <span className={styles.ratePrefix}>₱</span>
@@ -341,12 +288,8 @@ function JobOfferModal({
           </div>
         </div>
         <div className={styles.modalActions}>
-          <button className={styles.rejectBtn} onClick={onReject}>
-            Reject
-          </button>
-          <button className={styles.acceptBtn} onClick={handleAccept}>
-            Accept job
-          </button>
+          <button className={styles.rejectBtn} onClick={onReject}>Reject</button>
+          <button className={styles.acceptBtn} onClick={handleAccept}>Accept job</button>
         </div>
       </div>
     </div>
@@ -360,22 +303,12 @@ function OfferCard({ offer, onView }: { offer: JobOffer; onView: () => void }) {
   return (
     <div className={styles.offerCard}>
       <div className={styles.offerHeader}>
-        <img
-          src={offer.clientAvatar}
-          alt={offer.clientName}
-          className={styles.jobAvatar}
-        />
+        <img src={offer.clientAvatar} alt={offer.clientName} className={styles.jobAvatar} />
         <div className={styles.jobMeta}>
           <span className={styles.jobClientName}>{offer.clientName}</span>
           <div className={styles.jobSubRow}>
-            <CalendarDays
-              size={11}
-              strokeWidth={2}
-              className={styles.jobSubIcon}
-            />
-            <span className={styles.jobDate}>
-              {offer.date} · {offer.time}
-            </span>
+            <CalendarDays size={11} strokeWidth={2} className={styles.jobSubIcon} />
+            <span className={styles.jobDate}>{offer.date} · {offer.time}</span>
           </div>
         </div>
         <span className={styles.badgeNew}>New</span>
@@ -387,19 +320,14 @@ function OfferCard({ offer, onView }: { offer: JobOffer; onView: () => void }) {
         </div>
         <div className={styles.distanceChip}>
           <Navigation size={11} strokeWidth={2} />
-          <span>
-            {offer.distance} · {offer.eta}
-          </span>
+          <span>{offer.distance} · {offer.eta}</span>
         </div>
       </div>
       <p className={styles.jobDesc}>{offer.description}</p>
       {offer.images && (
         <div className={styles.offerImageHint}>
           <ImageIcon size={12} strokeWidth={2} />
-          <span>
-            {offer.images.length} photo{offer.images.length > 1 ? "s" : ""}{" "}
-            attached
-          </span>
+          <span>{offer.images.length} photo{offer.images.length > 1 ? "s" : ""} attached</span>
         </div>
       )}
       <div className={styles.jobFooter}>
@@ -417,26 +345,16 @@ function OfferCard({ offer, onView }: { offer: JobOffer; onView: () => void }) {
 function CompletedCard({ job }: { job: CompletedJob }) {
   return (
     <div className={styles.completedCard}>
-      <img
-        src={job.clientAvatar}
-        alt={job.clientName}
-        className={styles.jobAvatar}
-      />
+      <img src={job.clientAvatar} alt={job.clientName} className={styles.jobAvatar} />
       <div className={styles.jobMeta}>
         <span className={styles.jobClientName}>{job.clientName}</span>
         <div className={styles.jobSubRow}>
-          <CalendarDays
-            size={11}
-            strokeWidth={2}
-            className={styles.jobSubIcon}
-          />
+          <CalendarDays size={11} strokeWidth={2} className={styles.jobSubIcon} />
           <span className={styles.jobDate}>{job.date}</span>
         </div>
       </div>
       <div className={styles.completedRight}>
-        <span className={styles.completedAmount}>
-          ₱{job.amount.toLocaleString()}
-        </span>
+        <span className={styles.completedAmount}>₱{job.amount.toLocaleString()}</span>
         <span className={styles.badgeCompleted}>Done</span>
       </div>
     </div>
@@ -449,16 +367,12 @@ function CompletedCard({ job }: { job: CompletedJob }) {
 export default function SpecialistDashboard() {
   const router = useRouter();
 
-  // Auth state
   const [userId, setUserId] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  // State for specialist profile (fetched from API)
   const [specialist, setSpecialist] = useState<SpecialistProfile | null>(null);
   const [isLoadingSpecialist, setIsLoadingSpecialist] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // UI state
   const [autoAccept, setAutoAccept] = useState(true);
   const [online, setOnline] = useState(true);
   const [activeTab, setActiveTab] = useState<"offers" | "completed">("offers");
@@ -470,7 +384,6 @@ export default function SpecialistDashboard() {
   const [declinedJobIds, setDeclinedJobIds] = useState<Map<string, number>>(new Map());
   const [lastRejectionTime, setLastRejectionTime] = useState<number | null>(null);
 
-  // Dynamic earnings state
   const [thisWeek, setThisWeek] = useState(0);
   const [pending, setPending] = useState(0);
 
@@ -478,10 +391,7 @@ export default function SpecialistDashboard() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const {
-          data: { user },
-          error: authError,
-        } = await supabase.auth.getUser();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError) {
           console.error("Auth error:", authError);
@@ -495,12 +405,9 @@ export default function SpecialistDashboard() {
           setUserId(user.id);
           setIsAuthenticated(true);
 
-          // Fetch specialist profile for this user
-          const { data: specialistData, error: specialistError } =
-            await supabase
-              .from("specialists")
-              .select(
-                `
+          const { data: specialistData, error: specialistError } = await supabase
+            .from("specialists")
+            .select(`
               *,
               profiles:user_id (
                 id,
@@ -510,27 +417,31 @@ export default function SpecialistDashboard() {
                 phone,
                 role
               )
-            `,
-              )
-              .eq("user_id", user.id)
-              .limit(1);
+            `)
+            .eq("user_id", user.id)
+            .limit(1) as unknown as {
+              data: Array<{
+                id: string;
+                user_id: string;
+                profession: string;
+                rating_avg: number;
+                jobs_completed: number;
+                profiles: { full_name: string; avatar_url: string; email: string; phone: string; role: string } | null;
+              }> | null;
+              error: unknown;
+            };
 
           if (specialistError) {
             console.error("Error fetching specialist:", specialistError);
-            // No specialist profile found - redirect to home page (not onboarding)
-            // Onboarding is only for users who explicitly choose to become specialists
-            console.log(
-              "No specialist profile found, redirecting to home page",
-            );
             setAuthError("No specialist profile found");
             setIsLoadingSpecialist(false);
             setTimeout(() => router.push("/"), 100);
             return;
           }
 
-          const specialist = specialistData?.[0];
+          const specialistRow = specialistData?.[0];
 
-          if (!specialist) {
+          if (!specialistRow) {
             console.warn("No specialist profile found for user");
             setAuthError("No specialist profile found");
             setIsLoadingSpecialist(false);
@@ -538,27 +449,84 @@ export default function SpecialistDashboard() {
             return;
           }
 
+          // Calculate dynamic stats
+          const { count: reviewsCount, error: reviewsError } = await supabase
+            .from('reviews')
+            .select('*', { count: 'exact', head: true })
+            .eq('reviewee_id', user.id);
+
+          if (reviewsError) console.warn('Error fetching reviews count:', reviewsError);
+
+          const { count: totalJobsAssigned, error: jobsAssignedError } = await supabase
+            .from('jobs')
+            .select('*', { count: 'exact', head: true })
+            .eq('specialist_id', user.id);
+
+          if (jobsAssignedError) console.warn('Error fetching total jobs:', jobsAssignedError);
+
+          const totalAssigned = totalJobsAssigned || 0;
+          const completionRate = totalAssigned > 0 ? (specialistRow.jobs_completed / totalAssigned) * 100 : 0;
+
+          // Response rate calculation
+          const { data: assignedJobs, error: assignedJobsError } = await supabase
+            .from('jobs')
+            .select('id, created_at')
+            .eq('specialist_id', user.id) as { data: { id: string; created_at: string }[] | null; error: any };
+
+          if (assignedJobsError) console.warn('Error fetching assigned jobs:', assignedJobsError);
+
+          let quickResponses = 0;
+          if (assignedJobs && assignedJobs.length > 0) {
+            const jobIds = assignedJobs.map(j => j.id);
+            const { data: quotes, error: quotesError } = await supabase
+              .from('quotes')
+              .select('job_id, created_at')
+              .in('job_id', jobIds)
+              .eq('worker_id', specialistRow.id) as { data: { job_id: string; created_at: string }[] | null; error: any };
+
+            if (quotesError) console.warn('Error fetching quotes:', quotesError);
+
+            if (quotes) {
+              assignedJobs.forEach(job => {
+                const quote = quotes.find(q => q.job_id === job.id);
+                if (quote) {
+                  const jobTime = new Date(job.created_at).getTime();
+                  const quoteTime = new Date(quote.created_at).getTime();
+                  const diffHours = (quoteTime - jobTime) / (1000 * 60 * 60);
+                  if (diffHours <= 24) quickResponses++;
+                }
+              });
+            }
+          }
+
+          const responseRate = totalAssigned > 0 ? (quickResponses / totalAssigned) * 100 : 0;
+
+          // Total earned calculation - fetch actual wallet balance from worker_details
+          const { data: walletData, error: walletError } = await supabase
+            .from('worker_details')
+            .select('wallet_balance')
+            .eq('user_id', specialistRow.user_id)
+            .maybeSingle() as { data: { wallet_balance: number } | null; error: any };
+
+          if (walletError) console.warn('Error fetching wallet:', walletError);
+
+          const totalEarned = walletData?.wallet_balance || 0;
+
           setSpecialist({
-            id: specialist.id,
-            name:
-              specialist.profiles?.full_name ||
-              user.email?.split("@")[0] ||
-              "Specialist",
-            avatar:
-              specialist.profiles?.avatar_url ||
-              "https://i.pravatar.cc/80?img=5",
-            role: specialist.profession || "General",
-            rating: specialist.rating_avg || 4.5,
-            reviews: specialist.jobs_completed || 0,
-            completionRate: 100,
-            totalEarned: 0,
-            thisWeek: 0,
-            pending: 0,
-            responseRate: 100,
+            id: specialistRow.id,           // specialists table row id
+            user_id: specialistRow.user_id, // ← auth user id (needed for job writes)
+            name: specialistRow.profiles?.full_name || user.email?.split("@")[0] || "Specialist",
+            avatar: specialistRow.profiles?.avatar_url || "https://i.pravatar.cc/80?img=5",
+            role: specialistRow.profession || "General",
+            rating: specialistRow.rating_avg || 0,
+            reviews: reviewsCount || 0,
+            completionRate: Math.round(completionRate),
+            totalEarned: totalEarned,
+            thisWeek: 0, // will be updated in fetchCompleted
+            pending: 0,  // will be updated in fetchCompleted
+            responseRate: Math.round(responseRate),
           });
         } else {
-          // Not authenticated, redirect to auth
-          console.log("No user found, redirecting to auth");
           setAuthError("Not authenticated");
           setIsLoadingSpecialist(false);
           setTimeout(() => router.push("/auth"), 100);
@@ -584,7 +552,6 @@ export default function SpecialistDashboard() {
       try {
         setIsLoading(true);
 
-        // Always fetch by profession to ensure only relevant jobs are shown
         if (!specialist?.role) {
           setOffers([]);
           setIsLoading(false);
@@ -604,8 +571,7 @@ export default function SpecialistDashboard() {
             data.jobs
               .filter((job: Job) => {
                 const declinedAt = declinedJobIds.get(job.id);
-                // Skip jobs declined within the last 10 seconds
-                return !declinedAt || (now - declinedAt) > 10000;
+                return !declinedAt || now - declinedAt > 10000;
               })
               .map((job: Job) => mapJobToOffer(job)),
           );
@@ -631,48 +597,31 @@ export default function SpecialistDashboard() {
       if (!specialist?.id) return;
 
       try {
-        // Get quotes for this specialist
         const { data: quotesData, error: quotesError } = await supabase
           .from("quotes")
           .select("job_id, proposed_rate, status")
-          .eq("worker_id", specialist.id);
+          .eq("worker_id", specialist.id) as unknown as {
+            data: Array<{ job_id: string; proposed_rate: number; status: string }> | null;
+            error: unknown;
+          };
 
-        if (quotesError) {
-          console.error("Error fetching quotes:", quotesError);
-          return;
-        }
+        if (quotesError || !quotesData || quotesData.length === 0) return;
 
-        if (!quotesData || quotesData.length === 0) {
-          return;
-        }
-
-        // Get job IDs from quotes
         const jobIds = quotesData.map((q) => q.job_id);
 
-        // Fetch completed jobs with accepted quotes
         const { data: jobsData, error: jobsError } = await supabase
           .from("jobs")
           .select("*")
           .in("id", jobIds)
           .eq("status", "completed");
 
-        if (jobsError) {
-          console.error("Error fetching jobs:", jobsError);
-          return;
-        }
+        if (jobsError || !jobsData || jobsData.length === 0) return;
 
-        if (!jobsData || jobsData.length === 0) {
-          return;
-        }
-
-        // Map jobs with quote rates and customer info
         const completed = await Promise.all(
           jobsData.map(async (job: Job) => {
-            // Find the quote for this job
             const quote = quotesData.find((q) => q.job_id === job.id);
             const rate = quote?.proposed_rate || 500;
 
-            // Fetch customer profile
             let customerName = "Customer";
             let customerAvatar = "https://i.pravatar.cc/80?img=5";
 
@@ -681,7 +630,7 @@ export default function SpecialistDashboard() {
                 .from("profiles")
                 .select("full_name, avatar_url")
                 .eq("id", job.customer_id)
-                .single();
+                .single() as { data: { full_name: string; avatar_url: string } | null; error: unknown };
 
               if (profileData) {
                 customerName = profileData.full_name || "Customer";
@@ -695,12 +644,8 @@ export default function SpecialistDashboard() {
               id: job.id,
               clientName: customerName,
               clientAvatar: customerAvatar,
-              date: new Date(
-                job.completed_at || job.created_at,
-              ).toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
+              date: new Date(job.completed_at || job.created_at).toLocaleDateString("en-US", {
+                month: "long", day: "numeric", year: "numeric",
               }),
               service: job.profession,
               amount: rate,
@@ -709,90 +654,71 @@ export default function SpecialistDashboard() {
         );
 
         setCompletedJobs(completed);
+        setThisWeek(completed.reduce((sum: number, job: CompletedJob) => sum + job.amount, 0));
 
-        // Calculate total earnings from completed jobs
-        const total = completed.reduce(
-          (sum: number, job: CompletedJob) => sum + job.amount,
-          0,
-        );
-        setThisWeek(total);
-
-        // Calculate pending earnings from accepted but not completed jobs
         const { data: pendingJobsData } = await supabase
           .from("jobs")
           .select("*")
           .in("id", jobIds)
-          .eq("status", "bid_accepted");
+          .eq("status", "bid_accepted") as unknown as { data: Job[] | null };
 
         if (pendingJobsData) {
-          const pendingTotal = pendingJobsData.reduce((sum, job) => {
-            const quote = quotesData.find((q) => q.job_id === job.id);
-            return sum + (quote?.proposed_rate || 0);
-          }, 0);
-          setPending(pendingTotal);
+          setPending(
+            pendingJobsData.reduce((sum, job) => {
+              const quote = quotesData.find((q) => q.job_id === job.id);
+              return sum + (quote?.proposed_rate || 0);
+            }, 0)
+          );
         }
       } catch (error) {
         console.error("Failed to fetch completed jobs:", error);
       }
     };
 
-    if (specialist?.id) {
-      fetchCompleted();
-    }
+    if (specialist?.id) fetchCompleted();
   }, [specialist?.id]);
 
-  // Auto-accept: Watch for new offers when autoAccept is enabled
+  // Auto-accept
   useEffect(() => {
     if (!autoAccept || !specialist?.id || offers.length === 0) return;
 
     const checkForAutoAccept = () => {
       const now = Date.now();
+      if (lastRejectionTime && now - lastRejectionTime < 4000) return false;
 
-      // Check if enough time has passed since last rejection (4 second buffer)
-      if (lastRejectionTime && (now - lastRejectionTime) < 4000) {
-        return false; // Too soon after rejection
-      }
-
-      // Find the first offer that hasn't been auto-accepted yet, isn't currently selected,
-      // and wasn't declined within the last 10 seconds
-      const newOffer = offers.find(
-        (offer) => {
-          const declinedAt = declinedJobIds.get(offer.id);
-          return !autoAcceptedJobIds.has(offer.id) &&
-                 offer.id !== selectedOffer?.id &&
-                 (!declinedAt || (now - declinedAt) > 10000);
-        }
-      );
+      const newOffer = offers.find((offer) => {
+        const declinedAt = declinedJobIds.get(offer.id);
+        return (
+          !autoAcceptedJobIds.has(offer.id) &&
+          offer.id !== selectedOffer?.id &&
+          (!declinedAt || now - declinedAt > 10000)
+        );
+      });
 
       if (newOffer && !selectedOffer) {
-        console.log("Auto-showing accept modal for job:", newOffer.id);
-        // Show the modal instead of accepting directly
         setSelectedOffer(newOffer);
-        return true; // Modal was shown
+        return true;
       }
-
-      return false; // No modal shown
+      return false;
     };
 
-    // Try to show modal immediately
     const modalShown = checkForAutoAccept();
 
-    // If modal wasn't shown and we're in cooldown, schedule a check
     if (!modalShown && lastRejectionTime) {
-      const now = Date.now();
-      const timeSinceRejection = now - lastRejectionTime;
-
+      const timeSinceRejection = Date.now() - lastRejectionTime;
       if (timeSinceRejection < 4000) {
-        const remainingTime = 4000 - timeSinceRejection;
-        const timeoutId = setTimeout(() => {
-          checkForAutoAccept();
-        }, remainingTime);
-
+        const timeoutId = setTimeout(checkForAutoAccept, 4000 - timeSinceRejection);
         return () => clearTimeout(timeoutId);
       }
     }
   }, [offers, autoAccept, specialist?.id, autoAcceptedJobIds, selectedOffer, lastRejectionTime]);
 
+  /* ---------------------------------------------------------------- */
+  /*  ✅ FIXED handleAccept                                            */
+  /*  Writes specialist.user_id (auth uid) into jobs.specialist_id    */
+  /*  so the tracking page can call /api/specialists/[user_id] and    */
+  /*  get the specialist profile back correctly.                       */
+  /* ---------------------------------------------------------------- */
   const handleAccept = async (rate: number) => {
     if (!selectedOffer || !specialist?.id) {
       alert("Missing offer or specialist information");
@@ -800,12 +726,9 @@ export default function SpecialistDashboard() {
     }
 
     try {
-      // 1. No need to update location - use profile location set during signup
-      // Location is already stored in specialist profile from auth/onboarding
-
-      // 2. Create quote
-      const { data: quoteData, error: quoteError } = await supabase
-        .from("quotes")
+      // 1. Create quote — uses specialists TABLE row id (correct for quotes)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: quoteError } = await (supabase.from("quotes") as any)
         .insert({
           job_id: selectedOffer.id,
           worker_id: specialist.id,
@@ -822,22 +745,23 @@ export default function SpecialistDashboard() {
         return;
       }
 
-      // 4. Update job status via API endpoint
-      const requestBody = {
-        status: "bid_accepted",
-        specialist_id: specialist.id,
-      };
+      // 2. Write specialist.user_id into jobs.specialist_id
+      //    specialist.user_id is the auth UUID — this is what /api/specialists/[id]
+      //    uses to look up the profile, so the tracking page gets the right data.
       const jobUpdateRes = await fetch(`/api/jobs/${selectedOffer.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          status: "bid_accepted",
+          specialist_id: specialist.id, // specialists table row id
+        }),
       });
 
       if (!jobUpdateRes.ok) {
         let errorMessage = `HTTP Error ${jobUpdateRes.status}`;
-        const contentType = jobUpdateRes.headers.get("content-type");
         try {
           const responseText = await jobUpdateRes.text();
+          const contentType = jobUpdateRes.headers.get("content-type");
           if (contentType?.includes("application/json")) {
             const parsed = JSON.parse(responseText);
             errorMessage = parsed.error || parsed.message || errorMessage;
@@ -845,13 +769,14 @@ export default function SpecialistDashboard() {
             errorMessage = responseText;
           }
         } catch (err) {}
-        alert(`Failed to accept job (${jobUpdateRes.status}): ${errorMessage}`);  
+        alert(`Failed to accept job (${jobUpdateRes.status}): ${errorMessage}`);
         return;
       }
 
       const jobData = await jobUpdateRes.json();
       if (!jobData.success) {
-        alert(`Failed to accept job: ${jobData.error || "Please try again."}`);  
+        alert(`Failed to accept job: ${jobData.error || "Please try again."}`);
+        return;
       }
 
       setPending((prev) => prev + rate);
@@ -860,6 +785,7 @@ export default function SpecialistDashboard() {
       setSelectedOffer(null);
       router.push(`/specialist/job/${selectedOffer.id}`);
     } catch (error) {
+      console.error("Failed to accept job:", error);
       alert("Failed to accept job. Please try again.");
     }
   };
@@ -868,7 +794,6 @@ export default function SpecialistDashboard() {
     if (!selectedOffer || !specialist?.id) return;
 
     try {
-      // Reassign job (customer continues searching). Remove current specialist assignment.
       const res = await fetch(`/api/jobs/${selectedOffer.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -879,20 +804,16 @@ export default function SpecialistDashboard() {
         let errorMessage = `HTTP ${res.status}`;
         try {
           const err = await res.json();
-          errorMessage += err.error ? `: ${err.error}` : '';
+          errorMessage += err.error ? `: ${err.error}` : "";
           if (err.details) errorMessage += ` (${err.details})`;
         } catch (parseError) {
-          // If response body can't be parsed as JSON, use status text
-          errorMessage += res.statusText ? `: ${res.statusText}` : '';
+          errorMessage += res.statusText ? `: ${res.statusText}` : "";
         }
         console.error("Failed to reassign job:", errorMessage);
-        // Still proceed with rejection even if reassign fails
       }
 
-      // Add to declined jobs with timestamp to prevent showing again for 10 seconds
       setDeclinedJobIds((prev) => new Map(prev).set(selectedOffer.id, Date.now()));
       setLastRejectionTime(Date.now());
-
       setSelectedOffer(null);
     } catch (error) {
       console.error("Failed to reject job:", error);
@@ -914,7 +835,6 @@ export default function SpecialistDashboard() {
     }
   };
 
-  // Show loading while fetching specialist
   if (isLoadingSpecialist) {
     return (
       <div className={styles.page}>
@@ -926,7 +846,6 @@ export default function SpecialistDashboard() {
     );
   }
 
-  // If no specialist after loading, show message (should redirect soon)
   if (!specialist) {
     return (
       <div className={styles.page}>
@@ -939,30 +858,10 @@ export default function SpecialistDashboard() {
   }
 
   const STATS = [
-    {
-      label: "Completion",
-      value: `${specialist.completionRate}%`,
-      sub: "Rate",
-      accent: "green",
-    },
-    {
-      label: "Rating",
-      value: specialist.rating.toFixed(1),
-      sub: `${specialist.reviews} reviews`,
-      accent: "yellow",
-    },
-    {
-      label: "Earned",
-      value: `₱${(thisWeek / 1000).toFixed(1)}k`,
-      sub: "This week",
-      accent: "brand",
-    },
-    {
-      label: "Response",
-      value: `${specialist.responseRate}%`,
-      sub: "Rate",
-      accent: "blue",
-    },
+    { label: "Completion", value: `${specialist.completionRate}%`, sub: "Rate", accent: "green" },
+    { label: "Rating", value: specialist.rating.toFixed(1), sub: `${specialist.reviews} reviews`, accent: "yellow" },
+    { label: "Earned", value: `₱${(specialist.totalEarned / 1000).toFixed(1)}k`, sub: "Total", accent: "brand" },
+    { label: "Response", value: `${specialist.responseRate}%`, sub: "Rate", accent: "blue" },
   ];
 
   return (
@@ -972,14 +871,8 @@ export default function SpecialistDashboard() {
         <div className={styles.heroGlow} aria-hidden />
         <div className={styles.heroTop}>
           <div className={styles.heroAvatarWrap}>
-            <img
-              src={specialist.avatar}
-              alt={specialist.name}
-              className={styles.heroAvatar}
-            />
-            <span
-              className={`${styles.onlineDot} ${online ? styles.onlineDotActive : ""}`}
-            />
+            <img src={specialist.avatar} alt={specialist.name} className={styles.heroAvatar} />
+            <span className={`${styles.onlineDot} ${online ? styles.onlineDotActive : ""}`} />
           </div>
           <div className={styles.heroIdentity}>
             <span className={styles.heroName}>{specialist.name}</span>
@@ -998,17 +891,11 @@ export default function SpecialistDashboard() {
         <div className={styles.earningsCard}>
           <div className={styles.earningsPrimary}>
             <span className={styles.earningsCurrency}>₱</span>
-            <span className={styles.earningsValue}>
-              {thisWeek.toLocaleString()}
-            </span>
+            <span className={styles.earningsValue}>{specialist.totalEarned.toLocaleString()}</span>
           </div>
-          <span className={styles.earningsLabel}>This week</span>
+          <span className={styles.earningsLabel}>Total earned</span>
           <div className={styles.earningsMeta}>
-            <TrendingUp
-              size={12}
-              strokeWidth={2}
-              className={styles.earningsIcon}
-            />
+            <TrendingUp size={12} strokeWidth={2} className={styles.earningsIcon} />
             <span>₱{pending.toLocaleString()} pending</span>
           </div>
         </div>
@@ -1018,10 +905,7 @@ export default function SpecialistDashboard() {
       <main className={styles.content}>
         <div className={styles.statsGrid}>
           {STATS.map((s) => (
-            <div
-              key={s.label}
-              className={`${styles.statCard} ${styles[`stat_${s.accent}`]}`}
-            >
+            <div key={s.label} className={`${styles.statCard} ${styles[`stat_${s.accent}`]}`}>
               <span className={styles.statValue}>{s.value}</span>
               <span className={styles.statLabel}>{s.label}</span>
               <span className={styles.statSub}>{s.sub}</span>
@@ -1033,29 +917,17 @@ export default function SpecialistDashboard() {
           <div className={styles.settingRow}>
             <div className={styles.settingLabel}>
               <span className={styles.settingTitle}>Auto accept</span>
-              <span className={styles.settingDesc}>
-                Automatically accept nearby jobs
-              </span>
+              <span className={styles.settingDesc}>Automatically accept nearby jobs</span>
             </div>
-            <Toggle
-              on={autoAccept}
-              onChange={() => setAutoAccept((v) => !v)}
-              label="Toggle auto accept"
-            />
+            <Toggle on={autoAccept} onChange={() => setAutoAccept((v) => !v)} label="Toggle auto accept" />
           </div>
           <div className={styles.settingDivider} />
           <div className={styles.settingRow}>
             <div className={styles.settingLabel}>
               <span className={styles.settingTitle}>Available</span>
-              <span className={styles.settingDesc}>
-                You&apos;re visible to customers
-              </span>
+              <span className={styles.settingDesc}>You&apos;re visible to customers</span>
             </div>
-            <Toggle
-              on={online}
-              onChange={() => setOnline((v) => !v)}
-              label="Toggle availability"
-            />
+            <Toggle on={online} onChange={() => setOnline((v) => !v)} label="Toggle availability" />
           </div>
           <div className={styles.settingDivider} />
           <button className={styles.walletRow}>
@@ -1065,11 +937,7 @@ export default function SpecialistDashboard() {
                 <span className={styles.settingTitle}>Wallet</span>
               </div>
             </div>
-            <ArrowUpRight
-              size={16}
-              strokeWidth={2}
-              className={styles.walletArrow}
-            />
+            <ArrowUpRight size={16} strokeWidth={2} className={styles.walletArrow} />
           </button>
         </div>
 
@@ -1082,20 +950,14 @@ export default function SpecialistDashboard() {
                 onClick={() => setActiveTab("offers")}
               >
                 Offers{" "}
-                {offers.length > 0 && (
-                  <span className={styles.tabBadge}>{offers.length}</span>
-                )}
+                {offers.length > 0 && <span className={styles.tabBadge}>{offers.length}</span>}
               </button>
               <button
                 className={`${styles.jobTab} ${activeTab === "completed" ? styles.jobTabActive : ""}`}
                 onClick={() => setActiveTab("completed")}
               >
                 Completed{" "}
-                {completedJobs.length > 0 && (
-                  <span className={styles.tabBadge}>
-                    {completedJobs.length}
-                  </span>
-                )}
+                {completedJobs.length > 0 && <span className={styles.tabBadge}>{completedJobs.length}</span>}
               </button>
             </div>
           </div>
@@ -1104,31 +966,17 @@ export default function SpecialistDashboard() {
             {activeTab === "offers" &&
               (isLoading ? (
                 <div className={styles.emptyState}>
-                  <Clock
-                    size={32}
-                    strokeWidth={1.5}
-                    className={styles.emptyIcon}
-                  />
+                  <Clock size={32} strokeWidth={1.5} className={styles.emptyIcon} />
                   <span className={styles.emptyText}>Loading jobs...</span>
                 </div>
               ) : offers.length === 0 ? (
                 <div className={styles.emptyState}>
-                  <CheckCircle2
-                    size={32}
-                    strokeWidth={1.5}
-                    className={styles.emptyIcon}
-                  />
-                  <span className={styles.emptyText}>
-                    No new job offers right now
-                  </span>
+                  <CheckCircle2 size={32} strokeWidth={1.5} className={styles.emptyIcon} />
+                  <span className={styles.emptyText}>No new job offers right now</span>
                 </div>
               ) : (
                 offers.map((o) => (
-                  <OfferCard
-                    key={o.id}
-                    offer={o}
-                    onView={() => setSelectedOffer(o)}
-                  />
+                  <OfferCard key={o.id} offer={o} onView={() => setSelectedOffer(o)} />
                 ))
               ))}
             {activeTab === "completed" &&
