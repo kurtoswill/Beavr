@@ -206,7 +206,7 @@ export async function PATCH(
       if (specialist_id) {
         updateData.accepted_at = new Date().toISOString();
         
-        // ✅ Initialize worker_details when specialist accepts job
+        // ✅ Initialize worker_details when specialist accepts job (only if not exists)
         const { data: specialist, error: specError } = await supabase
           .from('specialists')
           .select('user_id, years_exp')
@@ -214,16 +214,24 @@ export async function PATCH(
           .single() as { data: { user_id: string; years_exp: string | null } | null; error: any };
 
         if (!specError && specialist?.user_id) {
-          // Ensure worker_details record exists with initial 0 balance
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any)
+          // Check if worker_details already exists
+          const { data: existingDetails } = await supabase
             .from('worker_details')
-            .upsert({
-              id: specialist.user_id,
-              user_id: specialist_id,
-              years_experience: specialist.years_exp ? parseInt(specialist.years_exp, 10) : 0,
-              wallet_balance: 0
-            }, { onConflict: 'id' });
+            .select('id')
+            .eq('id', specialist.user_id)
+            .maybeSingle();
+
+          if (!existingDetails) {
+            // Only insert if not exists, with initial 0 balance
+            await supabase
+              .from('worker_details')
+              .insert({
+                id: specialist.user_id,
+                user_id: specialist_id,
+                years_experience: specialist.years_exp ? parseInt(specialist.years_exp, 10) : 0,
+                wallet_balance: 0
+              });
+          }
         }
       }
     }

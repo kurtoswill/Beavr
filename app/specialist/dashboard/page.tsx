@@ -733,8 +733,8 @@ export default function SpecialistDashboard() {
     }
 
     try {
-      // 1. Create quote — uses specialists TABLE row id (correct for quotes)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // 1. Create the quote
+      // We use specialist.id (the row ID from the 'specialists' table)
       const { error: quoteError } = await (supabase.from("quotes") as any)
         .insert({
           job_id: selectedOffer.id,
@@ -742,58 +742,37 @@ export default function SpecialistDashboard() {
           proposed_rate: rate,
           estimated_arrival: 30,
           status: "sent",
-        })
-        .select()
-        .single();
+        });
 
-      if (quoteError) {
-        console.error("Error creating quote:", quoteError);
-        alert("Failed to accept job. Please try again.");
-        return;
-      }
+      if (quoteError) throw quoteError;
 
-      // 2. Write specialist.user_id into jobs.specialist_id
-      //    specialist.user_id is the auth UUID — this is what /api/specialists/[id]
-      //    uses to look up the profile, so the tracking page gets the right data.
+      // 2. Update Job Status
+      // IMPORTANT: We do NOT deduct from wallet_balance here. 
+      // This PATCH only changes the job state and assigns the specialist.
       const jobUpdateRes = await fetch(`/api/jobs/${selectedOffer.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status: "bid_accepted",
-          specialist_id: specialist.id, // specialists table row id
+          specialist_id: specialist.id,
         }),
       });
 
-      if (!jobUpdateRes.ok) {
-        let errorMessage = `HTTP Error ${jobUpdateRes.status}`;
-        try {
-          const responseText = await jobUpdateRes.text();
-          const contentType = jobUpdateRes.headers.get("content-type");
-          if (contentType?.includes("application/json")) {
-            const parsed = JSON.parse(responseText);
-            errorMessage = parsed.error || parsed.message || errorMessage;
-          } else if (responseText) {
-            errorMessage = responseText;
-          }
-        } catch (err) {}
-        alert(`Failed to accept job (${jobUpdateRes.status}): ${errorMessage}`);
-        return;
-      }
+      if (!jobUpdateRes.ok) throw new Error("Failed to update job status");
 
-      const jobData = await jobUpdateRes.json();
-      if (!jobData.success) {
-        alert(`Failed to accept job: ${jobData.error || "Please try again."}`);
-        return;
-      }
-
+      // 3. Update UI Local State
+      // We only increase the 'pending' visual counter. 
+      // The 'totalEarned' stays the same because the job isn't finished.
       setPending((prev) => prev + rate);
       setOffers((prev) => prev.filter((o) => o.id !== selectedOffer.id));
       setAutoAcceptedJobIds((prev) => new Set(prev).add(selectedOffer.id));
       setSelectedOffer(null);
+      
+      // Navigate to tracking
       router.push(`/specialist/job/${selectedOffer.id}`);
     } catch (error) {
       console.error("Failed to accept job:", error);
-      alert("Failed to accept job. Please try again.");
+      alert("An error occurred while accepting the job.");
     }
   };
 

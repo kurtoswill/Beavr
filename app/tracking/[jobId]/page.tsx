@@ -720,28 +720,8 @@ export default function TrackingPage({ params }: { params: Promise<{ jobId: stri
         <button className={styles.backButton} onClick={() => router.back()} aria-label="Go back">
           <ArrowLeft size={20} strokeWidth={2} />
         </button>
-        <button
-          className={styles.refreshButton}
-          onClick={async () => {
-            try {
-              const res = await fetch(`/api/jobs/${jobId}`);
-              if (res.ok) {
-                const data = await res.json();
-                if (data.job) {
-                  await processJobUpdate(data.job);
-                }
-              }
-            } catch (err) {
-              console.warn("Manual refresh failed:", err);
-            }
-          }}
-          aria-label="Refresh status"
-        >
-          ⟳
-        </button>
-        <div className={`${styles.realtimeIndicator} ${styles[`realtime${realtimeStatus}`]}`} title={`Real-time: ${realtimeStatus}`}>
-          <div className={styles.realtimeDot} />
-        </div>
+        {/* Removed top-right refresh and realtime indicator circles as requested */}
+
       </div>
 
       {/* Sheet */}
@@ -764,7 +744,7 @@ export default function TrackingPage({ params }: { params: Promise<{ jobId: stri
               </div>
               <div className={styles.identityInfo}>
                 <div className={styles.identityTop}>
-                  <h2 className={styles.workerName}>{job.profession || "Specialist"}</h2>
+                  <h2 className={styles.workerName}>{specialist.full_name || job.profession || "Specialist"}</h2>
                   <span className={styles.workerRate}>₱{specialist.rate?.toLocaleString() || "500"}</span>
                 </div>
                 <div className={styles.starRow}>
