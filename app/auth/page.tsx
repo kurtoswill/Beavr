@@ -130,14 +130,18 @@ export default function AuthPage() {
         return;
       } else {
         // Sign in existing user
+        const originalConsoleError = console.error;
+        console.error = () => {}; // Suppress Supabase console error
+        
         const { data: authData, error: authError } =
           await supabase.auth.signInWithPassword({
             email: form.email,
             password: form.password,
           });
+        
+        console.error = originalConsoleError; // Restore console.error
 
         if (authError) {
-          console.error("Signin error:", authError);
           setErrors({ email: "Invalid email or password. Please try again." });
           setLoading(false);
           return;
