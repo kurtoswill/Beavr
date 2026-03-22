@@ -160,10 +160,18 @@ function RealMap({ job, journeyProgress, status }: { job: JobData; journeyProgre
 
   const currentSpecialistLocation = useMemo(() => {
     if (status === "heading" && localRouteCoordinates && specialistLocation) {
-      return interpolatePositionAlongRoute(localRouteCoordinates, journeyProgress) || specialistLocation;
+      const interpolated = interpolatePositionAlongRoute(localRouteCoordinates, journeyProgress);
+      if (interpolated && !isNaN(interpolated.lat) && !isNaN(interpolated.lon)) {
+        return interpolated;
+      }
+      return specialistLocation;
     }
     return specialistLocation;
   }, [status, localRouteCoordinates, journeyProgress, specialistLocation]);
+
+  const isValidLocation = (loc: { lat: number; lon: number } | null) => {
+    return loc !== null && typeof loc.lat === "number" && typeof loc.lon === "number" && !isNaN(loc.lat) && !isNaN(loc.lon);
+  };
 
   const center = useMemo(() => {
     if (customerLocation && currentSpecialistLocation) {
@@ -181,7 +189,7 @@ function RealMap({ job, journeyProgress, status }: { job: JobData; journeyProgre
       <Marker position={[customerLocation.lat, customerLocation.lon]} icon={customerIcon}>
         <Popup>Customer location</Popup>
       </Marker>
-      {currentSpecialistLocation && (
+      {isValidLocation(currentSpecialistLocation) && (
         <Marker position={[currentSpecialistLocation.lat, currentSpecialistLocation.lon]} icon={workerIcon}>
           <Popup>Your location</Popup>
         </Marker>
