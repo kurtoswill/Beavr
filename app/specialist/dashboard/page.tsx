@@ -465,6 +465,7 @@ export default function SpecialistDashboard() {
   const [completedJobs, setCompletedJobs] = useState<CompletedJob[]>([]);
   const [selectedOffer, setSelectedOffer] = useState<JobOffer | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [autoAcceptedJobIds, setAutoAcceptedJobIds] = useState<Set<string>>(new Set());
 
   // Dynamic earnings state
   const [thisWeek, setThisWeek] = useState(0);
@@ -729,6 +730,81 @@ export default function SpecialistDashboard() {
       fetchCompleted();
     }
   }, [specialist?.id]);
+
+  // Auto-accept: Watch for new offers when autoAccept is enabled
+  useEffect(() => {
+    if (!autoAccept || !specialist?.id || offers.length === 0) return;
+
+    // Find the first offer that hasn't been auto-accepted yet
+    const newOffer = offers.find(
+      (offer) => !autoAcceptedJobIds.has(offer.id)
+    );
+
+    if (newOffer) {
+      console.log("Auto-accepting job:", newOffer.id);
+      // Call handleAutoAccept directly (it will be the latest version due to render cycle)
+      (async () => {
+        if (!specialist?.id) return;
+
+        try {
+          // Optionally update specialist location to current browser location
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+              const { latitude, longitude } = pos.coords;
+              await supabase
+                .from("specialists")
+                .update({ location_lat: latitude, location_lng: longitude })
+                .eq("id", specialist.id);
+            });
+          }
+
+          // Create quote with suggested rate
+          const { data: quoteData, error: quoteError } = await supabase
+            .from("quotes")
+            .insert({
+              job_id: newOffer.id,
+              worker_id: specialist.id,
+              proposed_rate: newOffer.suggestedRate,
+              estimated_arrival: 30,
+              status: "sent",
+            })
+            .select()
+            .single();
+
+          if (quoteError) {
+            console.error("Error creating quote:", quoteError);
+            return;
+          }
+
+          // Update job status via API endpoint
+          const requestBody = {
+            status: "bid_accepted",
+            specialist_id: specialist.id,
+          };
+          const jobUpdateRes = await fetch(`/api/jobs/${newOffer.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(requestBody),
+          });
+
+          if (!jobUpdateRes.ok) {
+            console.error("Failed to update job status");
+            return;
+          }
+
+          const jobData = await jobUpdateRes.json();
+          if (jobData.success) {
+            setPending((prev) => prev + newOffer.suggestedRate);
+            setOffers((prev) => prev.filter((o) => o.id !== newOffer.id));
+            setAutoAcceptedJobIds((prev) => new Set(prev).add(newOffer.id));
+            router.push(`/specialist/job/${newOffer.id}`);
+          }
+        } catch (error) {
+          console.error("Auto-accept failed:", error);
+        }
+      })();
+    }
+  }, [offers, autoAccept, specialist?.id, autoAcceptedJobIds, router]);
 
   const handleAccept = async (rate: number) => {
     if (!selectedOffer || !specialist?.id) {
