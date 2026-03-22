@@ -889,10 +889,7 @@ export default function SpecialistDashboard() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    setIsLoggedIn(false);
-    setUserName(null);
-    setUserAvatar("https://i.pravatar.cc/80?img=5");
-    router.refresh();
+    router.push("/");
   };
 
   return (
