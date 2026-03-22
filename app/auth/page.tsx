@@ -121,7 +121,6 @@ export default function AuthPage() {
 
         {/* ── Beavr logo ── */}
         <div className={styles.logo}>
-          <div className={styles.logoMark}>⚡</div>
           <span className={styles.logoText}>Beavr</span>
         </div>
 
