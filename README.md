@@ -160,8 +160,6 @@ Beavr uses a commission-based model:
 | Revenue Stream | Mechanism | Who Pays |
 |---|---|---|
 | **Service Fee** | 10–15% of every completed job | Specialist (deducted from payout) |
-| **Beavr Pro** | Monthly subscription — lower commission, faster payouts | Specialist |
-| **Priority Listing** | Pay to rank higher in customer search | Specialist |
 
 > **Free for customers. Always.**
 
