@@ -737,16 +737,8 @@ export default function SpecialistDashboard() {
     }
 
     try {
-      // 1. Optionally update specialist location to current browser location (for demo)
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-          const { latitude, longitude } = pos.coords;
-          await supabase
-            .from("specialists")
-            .update({ location_lat: latitude, location_lng: longitude })
-            .eq("id", specialist.id);
-        });
-      }
+      // 1. No need to update location - use profile location set during signup
+      // Location is already stored in specialist profile from auth/onboarding
 
       // 2. Create quote
       const { data: quoteData, error: quoteError } = await supabase
