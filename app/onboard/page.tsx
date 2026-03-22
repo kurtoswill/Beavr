@@ -695,11 +695,11 @@ export default function OnboardPage() {
         const lastName = nameParts[nameParts.length - 1] || "";
         const middleInitial = nameParts.length > 2 ? nameParts[1]?.charAt(0) || "" : "";
 
-        // Get saved location from localStorage
+        // Get saved location from localStorage (but don't pre-fill coordinates for specialist onboarding)
         const savedLocation = localStorage.getItem("beavr_location");
         const location = savedLocation ? JSON.parse(savedLocation) : null;
 
-        // Auto-fill basic data first
+        // Auto-fill basic data first (but NOT coordinates - user must pin location for specialist)
         setData((d) => ({
           ...d,
           firstName: firstName || d.firstName,
@@ -708,20 +708,21 @@ export default function OnboardPage() {
           email: profile?.email || user.email || d.email,
           phone: profile?.phone || d.phone,
           street: profile?.street_address || d.street,
-          latitude: location?.latitude?.toString() || d.latitude,
-          longitude: location?.longitude?.toString() || d.longitude,
+          // Don't pre-fill latitude/longitude - user must choose specialist location
+          // latitude: location?.latitude?.toString() || d.latitude,
+          // longitude: location?.longitude?.toString() || d.longitude,
         }));
 
-        // Set map coordinates if location available
-        if (location?.latitude && location?.longitude) {
-          setMapCoords({ lat: location.latitude, lon: location.longitude });
-          setMapLabel(location.address || "Current location");
-        }
+        // Don't set map coordinates from localStorage - user must pin specialist location
+        // if (location?.latitude && location?.longitude) {
+        //   setMapCoords({ lat: location.latitude, lon: location.longitude });
+        //   setMapLabel(location.address || "Current location");
+        // }
 
-        // Auto-select location from PSGC after data loads
-        const targetProvince = profile?.province || location?.province;
-        const targetCity = profile?.municipality || location?.city;
-        const targetBarangay = profile?.barangay || location?.barangay;
+        // Auto-select location from PSGC after data loads (only from profile, not localStorage)
+        const targetProvince = profile?.province;
+        const targetCity = profile?.municipality;
+        const targetBarangay = profile?.barangay;
 
         if (targetProvince || targetCity || targetBarangay) {
           // Wait a bit for PSGC data to load

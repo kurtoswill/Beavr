@@ -141,6 +141,8 @@ export async function POST(request: NextRequest) {
           municipality,
           barangay,
           street_address,
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
           updated_at: new Date().toISOString(),
         },
         { onConflict: "id" },

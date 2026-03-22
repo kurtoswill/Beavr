@@ -312,12 +312,24 @@ export default function LandingPage() {
 
   /* ---- Create job via API ---- */
   const createJob = async (imageUrls: string[], customerId: string): Promise<string> => {
-    // Fetch customer's profile location
-    const { data: customerProfile } = await supabase
-      .from('profiles')
-      .select('location_lat, location_lng')
-      .eq('id', customerId)
-      .single();
+    // Fetch customer's profile location (set during signup/onboarding)
+    let customerProfile = null;
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('latitude, longitude')
+        .eq('id', customerId)
+        .single();
+
+      if (!error && data) {
+        customerProfile = data;
+        console.log('Using customer profile location:', customerProfile);
+      } else {
+        console.warn('Could not fetch profile location, using fallback:', error);
+      }
+    } catch (err) {
+      console.warn('Error fetching profile location:', err);
+    }
 
     const response = await fetch("/api/jobs", {
       method: "POST",
@@ -333,8 +345,8 @@ export default function LandingPage() {
         municipality: "Indang",
         barangay: location?.address || "Your location",
         photos: imageUrls.length > 0 ? imageUrls : null,
-        location_lat: customerProfile?.location_lat || location?.latitude,
-        location_lng: customerProfile?.location_lng || location?.longitude,
+        location_lat: customerProfile?.latitude,
+        location_lng: customerProfile?.longitude,
       }),
     });
 
