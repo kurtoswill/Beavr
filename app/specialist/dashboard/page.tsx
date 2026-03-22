@@ -367,6 +367,9 @@ function CompletedCard({ job }: { job: CompletedJob }) {
 /* ================================================================== */
 export default function SpecialistDashboard() {
   const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [userAvatar, setUserAvatar] = useState<string>("https://i.pravatar.cc/80?img=5");
 
   const [userId, setUserId] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -374,13 +377,10 @@ export default function SpecialistDashboard() {
   const [isLoadingSpecialist, setIsLoadingSpecialist] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
-<<<<<<< HEAD
-=======
   // Profile picture modal state
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // UI state
->>>>>>> 37782226eb1feb079702d0bbab0d88a9be264d2b
   const [autoAccept, setAutoAccept] = useState(true);
   const [online, setOnline] = useState(true);
   const [activeTab, setActiveTab] = useState<"offers" | "completed">("offers");
@@ -775,7 +775,7 @@ export default function SpecialistDashboard() {
       setOffers((prev) => prev.filter((o) => o.id !== selectedOffer.id));
       setAutoAcceptedJobIds((prev) => new Set(prev).add(selectedOffer.id));
       setSelectedOffer(null);
-      
+
       // Navigate to tracking
       router.push(`/specialist/job/${selectedOffer.id}`);
     } catch (error) {
@@ -814,23 +814,6 @@ export default function SpecialistDashboard() {
     }
   };
 
-<<<<<<< HEAD
-  const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error("Logout error:", error);
-        alert("Failed to logout");
-        return;
-      }
-      router.push("/");
-    } catch (error) {
-      console.error("Error during logout:", error);
-      alert("An error occurred during logout");
-    }
-  };
-
-=======
   /* ---- Upload profile picture ---- */
   const handleUploadProfilePicture = async (file: File) => {
     const formData = new FormData();
@@ -875,7 +858,6 @@ export default function SpecialistDashboard() {
   };
 
   // Show loading while fetching specialist
->>>>>>> 37782226eb1feb079702d0bbab0d88a9be264d2b
   if (isLoadingSpecialist) {
     return (
       <div className={styles.page}>
@@ -905,6 +887,14 @@ export default function SpecialistDashboard() {
     { label: "Response", value: `${specialist.responseRate}%`, sub: "Rate", accent: "blue" },
   ];
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setIsLoggedIn(false);
+    setUserName(null);
+    setUserAvatar("https://i.pravatar.cc/80?img=5");
+    router.refresh();
+  };
+
   return (
     <div className={styles.page}>
       {/* Header */}
@@ -912,10 +902,6 @@ export default function SpecialistDashboard() {
         <div className={styles.heroGlow} aria-hidden />
         <div className={styles.heroTop}>
           <div className={styles.heroAvatarWrap}>
-<<<<<<< HEAD
-            <img src={specialist.avatar} alt={specialist.name} className={styles.heroAvatar} />
-            <span className={`${styles.onlineDot} ${online ? styles.onlineDotActive : ""}`} />
-=======
             <button
               className={styles.heroAvatarButton}
               onClick={() => setIsProfileModalOpen(true)}
@@ -930,7 +916,6 @@ export default function SpecialistDashboard() {
             <span
               className={`${styles.onlineDot} ${online ? styles.onlineDotActive : ""}`}
             />
->>>>>>> 37782226eb1feb079702d0bbab0d88a9be264d2b
           </div>
           <div className={styles.heroIdentity}>
             <span className={styles.heroName}>{specialist.name}</span>

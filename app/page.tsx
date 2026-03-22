@@ -67,13 +67,9 @@ export default function LandingPage() {
   const [userAvatar, setUserAvatar] = useState<string>("https://i.pravatar.cc/80?img=5");
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
-<<<<<<< HEAD
-  const [userId, setUserId] = useState<string | null>(null);
-=======
   // Profile picture modal state
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   
->>>>>>> 37782226eb1feb079702d0bbab0d88a9be264d2b
   const [query, setQuery] = useState("");
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<UploadedFile[]>([]);
@@ -115,55 +111,19 @@ export default function LandingPage() {
 
         if (user) {
           setIsLoggedIn(true);
-<<<<<<< HEAD
-=======
           // Get user's name and avatar from profile
->>>>>>> 37782226eb1feb079702d0bbab0d88a9be264d2b
           const { data: profile, error: profileError } = await supabase
             .from("profiles")
             .select("full_name, avatar_url")
             .eq("id", user.id)
-<<<<<<< HEAD
-            .single() as { data: { full_name: string } | null; error: unknown };
-=======
             .single();
->>>>>>> 37782226eb1feb079702d0bbab0d88a9be264d2b
 
           if (profileError) {
             console.warn("Could not fetch profile:", profileError);
           }
 
           setUserName(profile?.full_name || user.email?.split("@")[0] || "User");
-<<<<<<< HEAD
-
-          // ── Look up any job this customer posted that is still pending or
-          //    bid_accepted. If found, set pendingJobId so the realtime listener
-          //    below kicks in even when the customer navigated back to home. ──
-          const { data: activeJob } = await supabase
-            .from("jobs")
-            .select("id, status")
-            .eq("customer_id", user.id)
-            .in("status", ["pending", "bid_accepted", "on_the_way"])
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .single() as { data: { id: string; status: string } | null; error: unknown };
-
-          if (activeJob) {
-            console.log("[Landing] Found active job:", activeJob.id, activeJob.status);
-            // If already accepted while they were away, redirect immediately
-            if (
-              activeJob.status === "bid_accepted" ||
-              activeJob.status === "on_the_way"
-            ) {
-              router.push(`/tracking/${activeJob.id}`);
-              return;
-            }
-            // Otherwise subscribe and wait
-            setPendingJobId(activeJob.id);
-          }
-=======
           setUserAvatar(profile?.avatar_url || "https://i.pravatar.cc/80?img=5");
->>>>>>> 37782226eb1feb079702d0bbab0d88a9be264d2b
         } else {
           setIsLoggedIn(false);
         }
