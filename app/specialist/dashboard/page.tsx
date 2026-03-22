@@ -15,6 +15,7 @@ import {
   ChevronRight,
   ImageIcon,
   ArrowUpRight,
+  LogOut,
 } from "lucide-react";
 import styles from "./page.module.css";
 
@@ -823,6 +824,21 @@ export default function SpecialistDashboard() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Logout error:", error);
+        alert("Failed to logout");
+        return;
+      }
+      router.push("/");
+    } catch (error) {
+      console.error("Error during logout:", error);
+      alert("An error occurred during logout");
+    }
+  };
+
   // Show loading while fetching specialist
   if (isLoadingSpecialist) {
     return (
@@ -899,6 +915,9 @@ export default function SpecialistDashboard() {
           </div>
           <button className={styles.notifBtn} aria-label="Notifications">
             <BellDot size={20} strokeWidth={2} />
+          </button>
+          <button className={styles.notifBtn} onClick={handleLogout} aria-label="Logout">
+            <LogOut size={20} strokeWidth={2} />
           </button>
         </div>
         <div className={styles.earningsCard}>
