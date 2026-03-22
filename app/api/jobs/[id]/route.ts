@@ -7,7 +7,7 @@ import { z } from 'zod';
 // Validation Schema for Status Update (MATCHES DATABASE ENUM)
 // ============================================================
 const updateJobStatusSchema = z.object({
-  status: z.enum(['pending', 'bid_accepted', 'on_the_way', 'working', 'completed']).optional(),
+  status: z.enum(['pending', 'bid_accepted', 'on_the_way', 'working', 'completed', 'paid']).optional(),
   specialist_id: z.string().uuid().nullable().optional(),
   reassign: z.boolean().optional(),
 });
@@ -16,7 +16,7 @@ const updateJobStatusSchema = z.object({
 // Type for update data
 // ============================================================
 interface JobUpdateData {
-  status: 'pending' | 'bid_accepted' | 'on_the_way' | 'working' | 'completed';
+  status: 'pending' | 'bid_accepted' | 'on_the_way' | 'working' | 'completed' | 'paid';
   specialist_id?: string | null;
   accepted_at?: string;
   completed_at?: string;

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Zap,
@@ -394,6 +394,8 @@ export default function SpecialistDashboard() {
 
   const [thisWeek, setThisWeek] = useState(0);
   const [pending, setPending] = useState(0);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [pendingPaymentJobs, setPendingPaymentJobs] = useState<CompletedJob[]>([]);
 
   // Check authentication on mount
   useEffect(() => {
@@ -595,91 +597,139 @@ export default function SpecialistDashboard() {
   }, [isAuthenticated, specialist?.role]);
 
   // Fetch completed jobs and calculate earnings
-  useEffect(() => {
-    const fetchCompleted = async () => {
-      if (!specialist?.id) return;
+  const fetchCompleted = useCallback(async () => {
+    if (!specialist?.id) return;
 
-      try {
-        const { data: quotesData, error: quotesError } = await supabase
-          .from("quotes")
-          .select("job_id, proposed_rate, status")
-          .eq("worker_id", specialist.id) as unknown as {
-            data: Array<{ job_id: string; proposed_rate: number; status: string }> | null;
-            error: unknown;
-          };
+    try {
+      // Get current wallet balance
+      const { data: walletData } = await supabase
+        .from('worker_details')
+        .select('wallet_balance')
+        .eq('id', specialist.user_id)
+        .maybeSingle() as { data: { wallet_balance: number } | null; error: unknown };
 
-        if (quotesError || !quotesData || quotesData.length === 0) return;
+      const currentBalance = walletData?.wallet_balance || 0;
 
-        const jobIds = quotesData.map((q) => q.job_id);
+      // Fetch all completed jobs
+      const { data: jobsData, error: jobsError } = await supabase
+        .from("jobs")
+        .select("*")
+        .eq("specialist_id", specialist.id)
+        .eq("status", "completed")
+        .order("completed_at", { ascending: false });
 
-        const { data: jobsData, error: jobsError } = await supabase
-          .from("jobs")
-          .select("*")
-          .in("id", jobIds)
-          .eq("status", "completed");
-
-        if (jobsError || !jobsData || jobsData.length === 0) return;
-
-        const completed = await Promise.all(
-          jobsData.map(async (job: Job) => {
-            const quote = quotesData.find((q) => q.job_id === job.id);
-            const rate = quote?.proposed_rate || 500;
-
-            let customerName = "Customer";
-            let customerAvatar = "https://i.pravatar.cc/80?img=5";
-
-            try {
-              const { data: profileData } = await supabase
-                .from("profiles")
-                .select("full_name, avatar_url")
-                .eq("id", job.customer_id)
-                .single() as { data: { full_name: string; avatar_url: string } | null; error: unknown };
-
-              if (profileData) {
-                customerName = profileData.full_name || "Customer";
-                customerAvatar = profileData.avatar_url || customerAvatar;
-              }
-            } catch (error) {
-              console.warn("Could not fetch customer profile:", error);
-            }
-
-            return {
-              id: job.id,
-              clientName: customerName,
-              clientAvatar: customerAvatar,
-              date: new Date(job.completed_at || job.created_at).toLocaleDateString("en-US", {
-                month: "long", day: "numeric", year: "numeric",
-              }),
-              service: job.profession,
-              amount: rate,
-            };
-          }),
-        );
-
-        setCompletedJobs(completed);
-        setThisWeek(completed.reduce((sum: number, job: CompletedJob) => sum + job.amount, 0));
-
-        const { data: pendingJobsData } = await supabase
-          .from("jobs")
-          .select("*")
-          .in("id", jobIds)
-          .eq("status", "bid_accepted") as unknown as { data: Job[] | null };
-
-        if (pendingJobsData) {
-          setPending(
-            pendingJobsData.reduce((sum, job) => {
-              const quote = quotesData.find((q) => q.job_id === job.id);
-              return sum + (quote?.proposed_rate || 0);
-            }, 0)
-          );
-        }
-      } catch (error) {
-        console.error("Failed to fetch completed jobs:", error);
+      if (jobsError || !jobsData || jobsData.length === 0) {
+        setPendingPaymentJobs([]);
+        return;
       }
-    };
 
-    if (specialist?.id) fetchCompleted();
+      const completed = await Promise.all(
+        jobsData.map(async (job: Job) => {
+          let customerName = "Customer";
+          let customerAvatar = "https://i.pravatar.cc/80?img=5";
+
+          try {
+            const { data: profileData } = await supabase
+              .from("profiles")
+              .select("full_name, avatar_url")
+              .eq("id", job.customer_id)
+              .single() as { data: { full_name: string; avatar_url: string } | null; error: unknown };
+
+            if (profileData) {
+              customerName = profileData.full_name || "Customer";
+              customerAvatar = profileData.avatar_url || customerAvatar;
+            }
+          } catch (error) {
+            console.warn("Could not fetch customer profile:", error);
+          }
+
+          const { data: quoteData } = await supabase
+            .from("quotes")
+            .select("proposed_rate")
+            .eq("job_id", job.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle() as { data: { proposed_rate: number } | null; error: unknown };
+
+          const rate = quoteData?.proposed_rate || 500;
+
+          return {
+            id: job.id,
+            clientName: customerName,
+            clientAvatar: customerAvatar,
+            date: new Date(job.completed_at || job.created_at).toLocaleDateString("en-US", {
+              month: "long", day: "numeric", year: "numeric",
+            }),
+            service: job.profession,
+            amount: rate,
+          };
+        }),
+      );
+
+      // If wallet has balance, consider oldest jobs as paid
+      let remainingJobs = [...completed];
+      if (currentBalance > 0) {
+        let balanceLeft = currentBalance;
+        remainingJobs = [];
+        
+        // Process jobs from oldest to newest
+        const sortedJobs = [...completed].reverse();
+        for (const job of sortedJobs) {
+          if (balanceLeft >= job.amount) {
+            balanceLeft -= job.amount;
+          } else {
+            remainingJobs.push(job);
+          }
+        }
+      }
+
+      setPendingPaymentJobs(remainingJobs);
+      setCompletedJobs(completed);
+      setThisWeek(completed.reduce((sum: number, job: CompletedJob) => sum + job.amount, 0));
+
+      const { data: pendingJobsData } = await supabase
+        .from("jobs")
+        .select("*")
+        .eq("specialist_id", specialist.id)
+        .eq("status", "bid_accepted") as unknown as { data: Job[] | null };
+
+      if (pendingJobsData) {
+        setPending(
+          pendingJobsData.reduce((sum) => sum + 500, 0)
+        );
+      }
+    } catch (error) {
+      console.error("Failed to fetch completed jobs:", error);
+    }
   }, [specialist?.id]);
+
+  useEffect(() => {
+    fetchCompleted();
+  }, [fetchCompleted]);
+
+  useEffect(() => {
+    if (!specialist?.id) return;
+
+    const channel = supabase
+      .channel('job-status-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'jobs',
+          filter: `specialist_id=eq.${specialist.id}`,
+        },
+        () => {
+          fetchCompleted();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [specialist?.id, fetchCompleted]);
 
   // Recalculate completion percentage as completed / (offers + completed)
   useEffect(() => {
@@ -921,8 +971,9 @@ export default function SpecialistDashboard() {
               <span>{specialist.role}</span>
             </div>
           </div>
-          <button className={styles.notifBtn} aria-label="Notifications">
+          <button className={styles.notifBtn} onClick={() => setShowNotifPanel(!showNotifPanel)} aria-label="Notifications">
             <BellDot size={20} strokeWidth={2} />
+            {pendingPaymentJobs.length > 0 && <span className={styles.notifBadge}>{pendingPaymentJobs.length}</span>}
           </button>
           <button className={styles.notifBtn} onClick={handleLogout} aria-label="Logout">
             <LogOut size={20} strokeWidth={2} />
@@ -940,6 +991,40 @@ export default function SpecialistDashboard() {
           </div>
         </div>
       </header>
+
+      {showNotifPanel && (
+        <div className={styles.notifPanel}>
+          <div className={styles.notifPanelHeader}>
+            <span className={styles.notifPanelTitle}>Payment Notifications</span>
+            <button className={styles.notifPanelClose} onClick={() => setShowNotifPanel(false)}>
+              <X size={16} strokeWidth={2} />
+            </button>
+          </div>
+          <div className={styles.notifPanelContent}>
+            {pendingPaymentJobs.length === 0 ? (
+              <div className={styles.notifEmpty}>
+                <CheckCircle2 size={24} strokeWidth={2} />
+                <span>No pending payments</span>
+              </div>
+            ) : (
+              pendingPaymentJobs.map((job) => (
+                <div key={job.id} className={styles.notifItem}>
+                  <img src={job.clientAvatar} alt={job.clientName} className={styles.notifAvatar} />
+                  <div className={styles.notifInfo}>
+                    <span className={styles.notifJobTitle}>Payment from {job.clientName}</span>
+                    <span className={styles.notifJobMeta}>{job.date} · {job.service}</span>
+                  </div>
+                  <div className={styles.notifAmount}>
+                    <span className={styles.notifCurrency}>₱</span>
+                    <span className={styles.notifValue}>{job.amount.toLocaleString()}</span>
+                    <span className={styles.notifStatus}>Awaiting Payment</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <main className={styles.content}>

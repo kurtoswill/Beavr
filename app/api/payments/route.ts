@@ -65,6 +65,11 @@ export async function POST(request: NextRequest) {
                 console.error("Wallet Error:", walletError);
                 return NextResponse.json({ error: 'Wallet update failed: ' + walletError.message }, { status: 500 });
             }
+
+            await (supabase as any)
+                .from('jobs')
+                .update({ status: 'paid' })
+                .eq('id', job_id);
         }
 
         console.log('Payment processed successfully for job:', job_id);
