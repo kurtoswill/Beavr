@@ -312,6 +312,13 @@ export default function LandingPage() {
 
   /* ---- Create job via API ---- */
   const createJob = async (imageUrls: string[], customerId: string): Promise<string> => {
+    // Fetch customer's profile location
+    const { data: customerProfile } = await supabase
+      .from('profiles')
+      .select('location_lat, location_lng')
+      .eq('id', customerId)
+      .single();
+
     const response = await fetch("/api/jobs", {
       method: "POST",
       headers: {
@@ -326,8 +333,8 @@ export default function LandingPage() {
         municipality: "Indang",
         barangay: location?.address || "Your location",
         photos: imageUrls.length > 0 ? imageUrls : null,
-        location_lat: location?.latitude,
-        location_lng: location?.longitude,
+        location_lat: customerProfile?.location_lat || location?.latitude,
+        location_lng: customerProfile?.location_lng || location?.longitude,
       }),
     });
 

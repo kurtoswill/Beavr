@@ -15,6 +15,7 @@ import {
   ChevronRight,
   ImageIcon,
   ArrowUpRight,
+  LogOut,
 } from "lucide-react";
 import styles from "./page.module.css";
 
@@ -813,16 +814,8 @@ export default function SpecialistDashboard() {
     }
 
     try {
-      // 1. Optionally update specialist location to current browser location (for demo)
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-          const { latitude, longitude } = pos.coords;
-          await supabase
-            .from("specialists")
-            .update({ location_lat: latitude, location_lng: longitude })
-            .eq("id", specialist.id);
-        });
-      }
+      // 1. No need to update location - use profile location set during signup
+      // Location is already stored in specialist profile from auth/onboarding
 
       // 2. Create quote
       const { data: quoteData, error: quoteError } = await supabase
@@ -907,6 +900,21 @@ export default function SpecialistDashboard() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Logout error:", error);
+        alert("Failed to logout");
+        return;
+      }
+      router.push("/");
+    } catch (error) {
+      console.error("Error during logout:", error);
+      alert("An error occurred during logout");
+    }
+  };
+
   // Show loading while fetching specialist
   if (isLoadingSpecialist) {
     return (
@@ -983,6 +991,9 @@ export default function SpecialistDashboard() {
           </div>
           <button className={styles.notifBtn} aria-label="Notifications">
             <BellDot size={20} strokeWidth={2} />
+          </button>
+          <button className={styles.notifBtn} onClick={handleLogout} aria-label="Logout">
+            <LogOut size={20} strokeWidth={2} />
           </button>
         </div>
         <div className={styles.earningsCard}>
